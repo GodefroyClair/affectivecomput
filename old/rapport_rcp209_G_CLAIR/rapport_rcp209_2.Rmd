@@ -1,0 +1,891 @@
+---
+title: "Mesures physiologiques de joueurs de jeu vidéo (2)"
+subtitle: "Deuxième partie : analyse statistique et fouille des données"
+author: "Godefroy Clair"
+date: "Monday, July 13, 2015"
+output:
+  pdf_document:
+    includes:
+      in_header: C:/Users/Godefroy/Google Drive/ProjetPsychoGame/header.tex 
+    fig_caption: yes
+    latex_engine: xelatex
+    number_sections: yes
+    toc: yes
+    toc_depth: 3
+  html_document:
+    css: C:/Users/Godefroy/Google Drive/ProjetPsychoGame/style/gamer-expe.css
+    number_sections: yes
+    toc: yes
+  word_document: default
+---
+
+```{r, echo=FALSE, cache= FALSE ,comment='', warning=F,message=F}
+##Laisser le cache à False, sinon les bibliothèques ne sont pas chargées...
+require(knitr)
+require(plyr)
+require(ggplot2)
+require(reshape2)
+require(scatterplot3d)
+require(grDevices)
+require(kohonen)
+require(ggdendro)
+require(grid)
+require(zoo)
+```
+
+```{r, echo = F, cache=T}
+
+mac.gd.path <- "/Users/godot/Google Drive"
+hp.gd.path <- "C:/Users/Godefroy/Google Drive"
+
+
+if(Sys.info()['nodename']=="THIM")gd.path <- hp.gd.path else
+  gd.path <- mac.gd.path
+data.path <- paste(gd.path,"ProjetPsychoGame/data",sep = "/")
+```
+
+```{r, echo = F, cache=T}
+
+rda.save <- paste(data.path ,"data-frame-all-expe.Rda",sep = "/")
+load(rda.save)
+```
+
+\newpage
+
+#Introduction
+
+Comme nous avions conclu dans la partie précédente en soulevant quelques doutes concernant *certaines* mesures issues des expériences, nous allons procéder à une selection des expériences qui nous semblent en accord avec les plages de valeurs attendues. Nous procéderons ensuite à une fouille statistique sur cette selection.
+
+
+#Selection des données
+
+Nous avons à notre disposition 12 expériences nommées 'AB', 'CLP', 'CW', 'DA', 'FS1', 'HL', 'LM', 'PCo', 'PCo2', 'PCo3', 'DE' et 'ST'.
+Nous allons mettre de côté celles dont les mesures nous paraissent trop incertaines pour pouvoir être utlisées. Dans un second temps, il sera possible d'envisager de faire une selection par variable : au lieu de supprimer une expérience complète, on ne supprime que les variables à écarter.
+
+Nous proposons d'écarter les expériences suivantes :
+
+* 'FS1' à cause de la variable respiration
+* 'LM' à cause de la variable respiration
+* 'HL' à cause de la variable activité électrodermale (transpiration)
+* 'ST' à cause de la variable activité électrodermale (transpiration)
+
+Il nous reste donc les expériences  'AB', 'CLP', 'CW', 'DA', 'PCo', 'PCo2', 'PCo3' et 'DE', soit 8 expériences.
+
+```{r, cache=T}
+df.selec <- df.all[!(df.all$nom.experience %in% c("FS1","LM","HL","ST")),]
+list.expe.selec <- c("AB", "CLP", "CW", "DA", "PCo", "PCo2", "PCo3","DE")
+```
+
+
+#Fouille des données 
+
+Nous allons commencer par fournir quelques statistiques et graphiques pour se donner une vue d'ensemble.
+
+##Quelques statistiques descriptives
+
+
+Quelques statistiques pour synthétiser l'ensemble données :
+
+```{r,echo=FALSE,cache=T, fig.height=3, fig.width=3}
+opts_chunk$set(results='asis')
+#kable allows a petty print of a table
+kable(summary(df.selec[,3:6]), digits=2)
+opts_chunk$set(results='hold')
+```
+
+Nous ajoutons la déviation standard par variable:
+```{r,echo=FALSE, cache=T}
+sapply(df.selec[,3:6],sd)
+```
+
+##Quelques représentations graphiques
+
+```{r, echo=F, cache=T}
+#Utilis par la suite...
+
+# Multiple plot function
+#
+# ggplot objects can be passed in ..., or to plotlist (as a list of ggplot objects)
+# - cols:   Number of columns in layout
+# - layout: A matrix specifying the layout. If present, 'cols' is ignored.
+#
+# If the layout is something like matrix(c(1,2,3,3), nrow=2, byrow=TRUE),
+# then plot 1 will go in the upper left, 2 will go in the upper right, and
+# 3 will go all the way across the bottom.
+#
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+  library(grid)
+  
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+
+  numPlots = length(plots)
+
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                    ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+ 
+ if (numPlots==1) {
+    print(plots[[1]])
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+       
+    # Make each plot, in the correct location
+    for (i in 1:(numPlots)) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+     
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
+      
+    }
+  }
+}
+
+```
+
+Nous allons proposer pour chaque variable trois histogrammes différents. Ils permettent de se donner une idée de la répartition globale des données :
+
+-Le premier superpose à un histogramme classique, une courbe de densité. Il permet de "lisser" les variations et facilite le rapprochement avec une distribution de variable aléatoire. 
+
+-Le second histogramme nous montre comment se décompose chacunr des barres de l'histogramme entre les 4 quart temps.
+
+-Dans le troisième, les variations entre les barres sont gommées pour ne laisser voir que la répartition de des données entre les 4 goupes pour chaque intervale.
+
+```{r,echo=FALSE, cache=T, warning=F}
+
+make.histo = function(col,bin){
+  #histo avec ggplot
+  g <- ggplot(df.selec, aes_string(col, fill = "quart.temps"))
+  
+  #histogramme avec densité
+  g1 <- g + geom_histogram(aes(y=..density..),binwidth = bin, colour="black", fill="white") + geom_density(alpha=.2, fill="#FF6666") + theme(axis.title.x=element_blank(),legend.text=element_text(size=25),legend.title=element_text(size=25),axis.title.y=element_text(size=25))
+  
+  
+  #histo divisé par quart-temps
+  g2 <- g +  geom_bar(binwidth = bin) + theme(axis.title.x=element_blank(),legend.text=element_text(size=25),legend.title=element_text(size=25),axis.title.y=element_text(size=25))
+
+  
+  #histo divisé par quart-temps avec une longueur constante pour chaque rectangle
+  g3 <- g + geom_bar(position="fill",binwidth = bin) + theme(axis.title.x=element_blank(),legend.text=element_text(size=25),legend.title=element_text(size=25),axis.title.y=element_text(size=25))
+  
+  
+  multiplot(g1,g2,g3,cols=1)
+  
+}
+
+```
+
+\newpage
+
+###Pour la respiration :
+
+```{r, echo=F, cache=T, warning=F, fig.height=30, fig.width=25, fig.cap="histogrammes respiration"}
+make.histo("respiration",.75)
+
+```
+\newpage
+
+###Pour l'activité electrodermale :
+
+```{r, echo=F, cache=T, fig.height=30, fig.width=25, fig.cap="histogrammes transpiration"}
+
+make.histo("activite.electrodermale",.25)
+
+```
+\newpage
+
+###Pour la température :
+
+```{r, echo=F, cache=T, fig.height=30, fig.width=25, fig.cap="histogramme température"}
+make.histo("temperature",.25)
+
+```
+\newpage
+
+###Pour la fréquence cardiaque :
+
+Différents histogrammes pour la fréquence cardiaque :
+
+```{r, echo=F, cache=T, fig.height=30, fig.width=25, fig.cap="histogrammes fréquence cardiaque"}
+make.histo("frequence.cardiaque",1)
+```
+\newpage
+
+##Première fouille des données
+
+
+###Cartes auto-adaptatives (SOM)
+
+
+
+Nous allons procéder à une simulation grâce à la bibliothèque "kohonen" implémentée sous 'R'. Après avoir centré et réduit l'ensemble des données, nous allons créer une carte de Kohonen de taille 40x40 (ie une grille de 40 neurones - ou référents - par 40) avec une topologie hexagonal.
+
+La bibliothèque Kohonen sous R[^1] permet de créer une telle carte grâce à la fonction "som"[^2]. La distance utilisée est la distance euclidienne. Le nombre d'itération peut être fixé par le modélisateur. Par défaut, la "courbe d'apprentissage", indiquant la pondération donnée au poids que chaque nouvelle unité d'un neurone sur la "similarité" de ce neurone, diminue linéairement de 0.05 à 0.01 à chaque itération et le "radius" de voisinage : la taille initiale du voisinage de chaque neurone et la fonction caractérisant son évolution.
+
+Comme nous voulons donner autant de poids à toutes les variable, nous centrons et réduisons les 4 variables.
+
+```{r, echo=TRUE, cache=T}
+
+#obtenir un dégradé de couleurs de bleu à rouge
+coolBlueHotRed <- function(n, alpha = 1) {rainbow(n, end=4/6, alpha=alpha)[n:1]}
+
+#les variables sont centrées et réduites
+df.sc <- scale(df.selec[,2:5])
+
+#verification en prenan lees 1eres lignes
+kable(head(df.sc))
+
+set.seed(77)
+#calcul de l'a cart'algorithme d'attiribution des données aux neurones
+#rlen permet de préciser le nombre d'itérations
+som1 <- som(data = df.sc, grid = somgrid(30, 30, "hexagonal"), rlen=75)
+
+```
+
+Nous pouvons aussi voir une synthèse du résultat de l'algorithme
+```{r, echo=TRUE, cache=T}
+summary(som1)
+```
+
+
+
+####Vérification
+
+Un certain nombre de graphiques sont disponibles pour aider à juger du bon déroulement de  l'algorithme et ensuite permettre l'interprétation et la visualisation des résultats. La plupart ont une base commune : chaque neurone est représenté sur la carte par un disque ayant certaines caractéristiques esthétiques (couleurs, transparences...) et géométriques (courbes, camemberts...) qui permettent de visualier certaines propriétés ou valeurs associées à ce neurone. A noter que, par convention, on consdière que la lecture se fait de gauche à droite et de bas en haut. Ainsi, le *premier* référent est celui en bas à gauche et le *dernier* se situe en haut à droite.
+
+Le premier graphique est le "Training Progress". Il donne l'évolution de la distance moyenne des vecteurs de données au neurone auquel elles ont été attribuées. 
+
+```{r, echo=TRUE, cache=T, ,fig.cap="carte du progrès d'apprentissage"}
+plot(som1, type="changes", main="")
+```
+
+L'apprentissage semble s'être correctement déroulé : après avoir continuement diminuée, la distance moyenne des données aux neurone a atteint un plateau un peu avant la 40ème itération. Il ne semble donc pas nécessaire de faire plus d'itérations.
+
+\newpage
+
+Une autre carte utile pour voir comment s'est déroulé l'apprentissage est la carte "Node Counts" qui permet de visualiser comment se sont distribués les données entre les neurones : y a-t-il des neurones qui ont capté une grande partie des données ou la répartition est plus ou moins égalitaire ? y a-t-il des neurones qui ne captent pas de données ?
+
+```{r, echo=TRUE, cache=T, fig.cap="carte de comptages des données captées", out.width=".9\\paperwidth"}
+plot(som1, type="count", main= "")
+```
+
+
+Nous voyions (figure 2) que la plupart des neurones se sont vu attribuer un nombre de données compris entre 100 et 1000. Autre point intéressant, un certain nombre de neurones n'ont aucune donnée associée (en gris sur le graphique) et l'ensemble de ces neurones "vides" semblent former des frontières qui séparent les données en 5 groupes.
+
+\newpage
+
+Une autre carte intéressante est la carte dite de "qualité" (figure 3) qui montre la distance de chaque neurone aux données qui lui ont été attribuées.
+
+```{r, echo=TRUE, cache=T, fig.cap="carte de \"qualité\" : distance moyenne des données aux neurones  "}
+plot(som1, type="quality", palette.name = coolBlueHotRed, main = "")
+
+```
+
+Nous voyions que la distance est *faible*, assez *uniforme* et montrant peu de cas "aberrants" ; ce qui laisse là aussi présager d'une bonne répartition des données. On remarque aussi que les neurones qui sur la carte précédente n'avaient pas de données associées n'ont pas de distance (couleur grise).
+
+IL est intéressant de comparer aux premières cartes de Kohonen réalisées à partir d'expériences particulières[^3] avec des données non-traitées. On voit que, si dans le cas présent la distance est globalement bien inférieure (<0.01) et que seuls deux neurones voient cette distance moyenne être supérieure à 0.05 (pour les expériences AB et LM, nous trouvions 10% des neurones ayant une distance moyenne à ses données de plus de 0.5 (et presque 5% avec une distance supérieure à 1).
+
+\newpage
+
+####Interprétation
+
+La carte suivante (figure 4) est un premier élément d'interprétation de la carte : cette carte dite des "codebook vectors" indique quelles sont les caractéristiques de la donnée moyenne associées à chaque neurone. On peut ainsi parler de la carte d'identité de chaque neurone. Pour représenter cela dans le graphe, tout neurone de la carte (représenté par le biais d'un disque) contient des "camemberts" plus ou moins larges qui se partagent ainsi la surface de ces disques. Ils représentent la valeur moyenne des données captées par le neurone. 
+Ainsi, si la surface du camembert représentant la température est la plus grande (comme c'est le cas au nord-est de la carte), alors cela signifie que, aux instants capturées par ce neurone, la température cutanée était relativement élevée.
+
+Ainsi, nous voyions quand dans une zone nord-ouest de la carte, la témpérature est élevée.
+
+
+\newpage
+\newgeometry{left=0cm, right=0cm,bottom=3cm}
+\blandscape
+
+```{r, echo=F, cache=T, fig.height=8.5, fig.width=8.5,fig.cap="carte de l'identité des neurones", out.width="1\\paperwidth"}
+par(xpd=F)
+par(mai=  c(0, 0, 0, 0))
+plot(som1, main = "", type="codes",labels = NULL) 
+#legend("bottomright", "")
+#legend(2.8,0,c("temperature", "transpiration"), yjust = 0)
+```
+\elandscape
+\restoregeometry
+
+Du fait du nombre de neurones, la carte est difficilement lisible. On peut utliser certaines "astuces" pour remédier à ce problème.
+
+D'abord, on peut travailler avec une carte plus petite. (voir figure 5)
+
+```{r, echo=F, cache=T}
+
+#obtenir un dégradé de couleurs de bleu à rouge
+coolBlueHotRed <- function(n, alpha = 1) {rainbow(n, end=4/6, alpha=alpha)[n:1]}
+
+#les variables sont centrées et réduites
+df.sc <- scale(df.selec[,2:5])
+
+#verification en prenan lees 1eres lignes
+kable(head(df.sc))
+
+set.seed(77)
+#calcul de l'a cart'algorithme d'attiribution des données aux neurones
+#rlen permet de préciser le nombre d'itérations
+som2 <- som(data = df.sc, grid = somgrid(10, 10, "hexagonal"), rlen=75, keep.data = T)
+
+```
+
+La carte suivante (figure 6) a été créée avec une topologie de 100 (ie 10 * 10) neurones.
+ 
+```{r, echo=TRUE, cache=T, fig.height=15, fig.width=15, out.width=".9\\paperwidth", fig.cap="carte des neurones (10x10)"}
+plot(som2, main = "carte SOM") 
+```
+
+Vu le petit nombre de variables, nous pouvons aussi proposer des cartes "heatmaps" qui permettent de regarder la valeur moyenne associée à chaque neurone valeur par valeur :
+
+Heatmap de la respiration : voir figure 6
+
+```{r, echo=F, cache=T, fig.height=8, fig.width=8, fig.cap="carte heatmap de la respiration", warning=F}
+plot(som1, type = "property", property = som1$codes[,1], main="", palette.name=coolBlueHotRed)
+```
+
+Heatmap de l'activité électrodermale : voir figure 7
+
+```{r, echo=F, cache=T, fig.height=8, fig.width=8, fig.cap="carte heatmap de l'activité électrodermale", warning=F}
+plot(som1, type = "property", property = som1$codes[,2], main="", palette.name=coolBlueHotRed)
+```
+
+Heatmap de la température : voir figure 8
+
+```{r, echo=F, cache=T, fig.height=8, fig.width=8, fig.cap="carte heatmap de la température"}
+plot(som1, type = "property", property = som1$codes[,3], main="", palette.name=coolBlueHotRed)
+```
+
+Heatmap de la fréquence cardiaque : voir figure 9
+
+```{r, echo=F, cache=T, fig.height=8, fig.width=8, fig.cap="carte heatmap de la fréquence cardiaque", warning=F}
+plot(som1, type = "property", property = som1$codes[,4], main="", palette.name=coolBlueHotRed)
+```
+
+Synthèse des heatmaps :
+
+La température est un des facteurs les plus clivants, la respiration varie aussi beacoup entre un gros quart "sud-est" et le reste de la carte.
+Il est intéressant de superposer température et respiration (voir figure 10) : les deux cartes semblent varier à l'opposé l'une de l'autre.
+
+Heatmap de la respiration :
+
+```{r, echo=F, cache=T, fig.height=4, fig.width=8, fig.cap="comparaison des \"heatmaps\" de transpiration et respiration"}
+par(mfrow=c(1,2))
+plot(som1, type = "property", property = som1$codes[,1], main="respiration", palette.name=coolBlueHotRed)
+plot(som1, type = "property", property = som1$codes[,3], main="transpiration", palette.name=coolBlueHotRed)
+```
+
+visualisation des véritables valeurs associées aux neurones
+
+Cela consiste à présenter la variable avant la normalisation. Cela demande sous R un travail préalable
+
+```{r, echo=F, cache=T, fig.height=15, fig.width=15, fig.cap="heatmaps des variables non-normalisées", warning=F}
+par(mfrow=c(2,2))
+
+#respi
+resp.unscaled <- aggregate(df.selec$respiration,by=list(som1$unit.classif), FUN=mean, simplify=TRUE)[,2]
+plot(som1, type = "property", property = resp.unscaled, main="variable respiration non normalisée", palette.name=coolBlueHotRed)
+
+#activite.electrodermale
+transpi.unscaled <- aggregate(df.selec$activite.electrodermale,by=list(som1$unit.classif), FUN=mean, simplify=TRUE)[,2]
+plot(som1, type = "property", property = transpi.unscaled, main="variable transpiration non normalisée", palette.name=coolBlueHotRed)
+
+#température
+temp.unscaled <- aggregate(df.selec$temperature,by=list(som1$unit.classif), FUN=mean, simplify=TRUE)[,2]
+plot(som1, type = "property", property = temp.unscaled, main="variable température non normalisée", palette.name=coolBlueHotRed)
+
+#frequence.cardiaque
+freq.unscaled <- aggregate(df.selec$frequence.cardiaque,by=list(som1$unit.classif), FUN=mean, simplify=TRUE)[,2]
+plot(som1, type = "property", property = freq.unscaled, main="variable freq. card. non normalisée", palette.name=coolBlueHotRed)
+
+freq.unscaled <- aggregate(df.selec$frequence.cardiaque,by=list(som1$unit.classif), FUN=mean, simplify=TRUE)[,2]
+
+par(mfrow=c(1,1))
+```
+
+Sur la figure 11, on peut voir que les 4 cartes se superposent et que l'on peut définir un certain nombre de zone où les variables varient peu.
+\newpage
+
+\newpage
+
+Voyons avec la figure 12, comment les différentes expériences se partagent la carte en observant quelle est l'expérience majoritaire pour chaque neurone, celle dont les données sont les plus nombreux à lui avoir été associées.
+
+\newgeometry{left=0.8cm, right=0.5cm,bottom=3cm,top=0cm}
+
+```{r, echo=F, cache=T, fig.height=18, fig.width=18, fig.cap="experience majoritaire par neurone",out.width="0.95\\paperwidth"}
+
+par(mfrow=c(1,1))
+
+#créons une nvelle variable donnant le neurone associé à chaque données
+#attention : certaines neurones n'ont pas de données associées dc ils n'apparaissent pas
+df.selec$nom.neurone <- som1$unit.classif
+
+#data frame du nombre d'individus par expe pour chaque neurone **non vide**
+expe.par.neurone <- as.data.frame(with(df.selec, tapply(row.names(df.selec),list(neurone=nom.neurone,experience=nom.experience), length)))
+
+
+#ajoutons les neurones manquants
+#simplifier ??
+list.neuro.vid <- which(! seq(1:900) %in% as.numeric(rownames(expe.par.neurone)))
+nb.neuro.vid <- length(list.neuro.vid)
+#df des neurones manquants
+df.neuro.vid <- as.data.frame(matrix(nrow=nb.neuro.vid,ncol = ncol(expe.par.neurone)))
+#prépa du rbind avec autre fdf
+rownames(df.neuro.vid) <- list.neuro.vid
+colnames(df.neuro.vid) <- colnames(expe.par.neurone)
+#rbind & mis en ordre
+expe.par.neurone <- rbind(expe.par.neurone,df.neuro.vid)
+expe.par.neurone <- expe.par.neurone[order(as.numeric(row.names(expe.par.neurone))),]
+
+                    
+#expe.par.neurone
+
+#supprimons les facteurs inutiles
+expe.par.neurone <- expe.par.neurone[,list.expe.selec]
+expe.par.neurone[is.na(expe.par.neurone)]<-0
+
+#nom de l'experience la plus représentée par neurones
+expe.major.par.neurone <- as.factor(list.expe.selec[max.col(expe.par.neurone)])
+#put NA in line of neurone empty
+expe.major.par.neurone[rowSums(expe.par.neurone)==0]<-NA
+#test <- as.factor(rep(c("AB","CW","DA"),300))
+#plot(som1, type = "property", property = as.numeric(test), main="expérience majoritaire par neurone")
+
+
+#représentons cela graphiquement :
+plot(som1, type = "property", property = as.numeric(expe.major.par.neurone), main="",  heatkey =F,palette.name=coolBlueHotRed)
+text(x=som1$grid$pts[,1],y=som1$grid$pts[,2],labels=expe.major.par.neurone,cex = 1,font=2)
+
+
+#RESTE
+#exp.unscaled.mode <- aggregate(as.numeric(df.selec$nom.experience),by=list(som1$unit.classif), FUN=summary, simplify=TRUE)[,2]
+#colnames(mat.freq) <- c("AB", "CLP", "CW", "DA", "PCo", "PCo2", "PCo3", "DE")
+
+```
+
+
+\restoregeometry
+
+On remarque que chaque expérience se confine dans une partie de la carte, ce qui laisserait entendre que l'apprentissage a pris en compte les particularités de chaque expérience dans son mapping des données aux neurones.
+
+Nous pouvons confirmer cette impression grâce au tableau suivant qui, pour un échantillon de neurones tirés uniformémement parmi les 900, donne la répartition des expériences dont sont issues les données que chacun a capté.Nous en tirons 45, soit 5%. La première colonne nous donne le numéro du neurone tiré au hasard parmi les 900, les suivantes, le nombre de données issus de chaque expérience.
+
+```{r, echo=F, cache=T, fig.height=8, fig.width=8, fig.cap="Répartition des expériences pour un échantillon de neurones", warning=F}
+kable(expe.par.neurone[sample(x=1:length(expe.major.par.neurone),size = 45),])
+```
+ 
+Nous observions bien qu'une grande partie des neurones ont capté des données liées à une seule expérience. En fait, par un calcul simple, on peut trouver que `r sum.exp.neuro <- with(expe.par.neurone, rowSums(expe.par.neurone)); multi.expe <-length(expe.major.par.neurone)-length(which(apply(expe.par.neurone[,1:length(list.expe.selec)]==sum.exp.neuro,1, function(x) (sum(x)==0))));multi.expe`, soit `r  round(multi.expe/length(expe.major.par.neurone)*100)`% des neurones n'ont capté que les données d'une expérience.
+
+Par ailleurs, concernant le graphique montrant l'expérience majoritaire par neurone (figure 12), il est intéressant de noter que les zones des expériences PCo, PCo3 et Pco3 (qui ont été réaliées sur une même personne) sont assez fortement entremêlés ou en tout cas pas aussi démarqués qu'avec d'autres individues.
+
+Dans ce cadre, il est aussi intéressant de reprendre le tableau précédent mais cette fois en regardant les neurones associés à des données non-issues d'une unique expérience.
+
+```{r, echo=F, cache=T, fig.height=8, fig.width=8, fig.cap="Répartition des expériences pour les neurones en ayant captés plusieurs", warning=F}
+kable(expe.par.neurone[(which(apply(expe.par.neurone[,1:length(list.expe.selec)]==sum.exp.neuro,1, function(x) (sum(x)==0)))),])
+```
+
+Nous voyions là-aussi que les neurones ayant captées des données issues de différentes expériences sont pour leur grande majorité des données des expériences de l'individu "PCo". Ainsi, les neurones mettent ensemble les données d' expériences issues d'un même individu  et seulement celle-ci. AIns, il semble que les cartes de Kohonen soit capable avec ces données de distinguer des individus.
+
+L'intéret à terme de ce fait peut être grand (sur la question de la prédiction des particularités émotionnelles *indivuelles* notamment) mais puisque nous cherchons à associer des neurones non par une personne particulière mais plus à un type de mesure (qui serait lié à une émotion), il nous faudra aborder le problème d'une manière différente.
+
+Comme nous avons un certain nombre d'expériences non encore exploitées, nous pensons qu'en les intégrant à ces cartes, nous espérons que les différentes zones ne correspondent pas uniquement à un individu mais à un type d'individu. Le fait que les expériences issues d'un même individu soit "reconnues" pas la carte comme étant des données similaires nous confortent un peu dans cette possibilité.
+
+
+
+####Projection par quart-temps
+
+Si nous arrivons à découper la carte entre zones représentant des individus types, il faut ensuite caractériser pour chaque zone à quels périodes correspond chaque neurone : y a-t-il des périodes prolongées qui sont captées par certains neurones ?
+
+Dans un premier temps, pour le savoir,nous pouvons faire une projection par quart-temps en ajoutant sur la carte le quart-temps majoritaire dont sont issues les expériences.
+
+\newgeometry{left=0.8cm, right=0.5cm,bottom=3cm,top=0cm}
+
+```{r, echo=F, cache=T, fig.height=18, fig.width=18, fig.cap="quart temps majoritaire par neurone",out.width="0.95\\paperwidth"}
+
+par(mfrow=c(1,1))
+
+#créons une nvelle variable donnant le neurone associé à chaque données
+#attention : certaines neurones n'ont pas de données associées dc ils n'apparaissent pas
+df.selec$nom.neurone <- som1$unit.classif
+
+#data frame du nombre d'individus par expe pour chaque neurone **non vide**
+expe.par.qr.tps <- as.data.frame(with(df.selec, tapply(row.names(df.selec),list(neurone=nom.neurone,experience=quart.temps), length)))
+
+
+#ajoutons les neurones non associés à un quart-temps (car "vides")
+list.neuro.vid <- which(! seq(1:900) %in% as.numeric(rownames(expe.par.qr.tps)))
+nb.neuro.vid <- length(list.neuro.vid)
+#df des neurones manquants
+df.neuro.vid <- as.data.frame(matrix(nrow=nb.neuro.vid,ncol = ncol(expe.par.qr.tps)))
+#prépa du rbind avec autre fdf
+rownames(df.neuro.vid) <- list.neuro.vid
+colnames(df.neuro.vid) <- colnames(expe.par.qr.tps)
+#rbind & mis en ordre
+expe.par.qr.tps <- rbind(expe.par.qr.tps,df.neuro.vid)
+expe.par.qr.tps <- expe.par.qr.tps[order(as.numeric(row.names(expe.par.qr.tps))),]
+
+                    
+#expe.par.neurone
+
+qr.tps <- c("1er", "2eme", "3eme", "4eme")
+expe.par.qr.tps <- expe.par.qr.tps[,qr.tps]
+expe.par.qr.tps[is.na(expe.par.qr.tps)]<-0
+
+#nom de l'experience la plus représentée par qr.tps
+expe.major.par.qr.tps <- as.factor(qr.tps[max.col(expe.par.qr.tps)])
+#put NA in line of quart tps empty
+expe.major.par.qr.tps[rowSums(expe.par.qr.tps)==0]<-NA
+#test <- as.factor(rep(c("AB","CW","DA"),300))
+#plot(som1, type = "property", property = as.numeric(test), main="expérience majoritaire par qr.tps")
+
+
+#représentons cela graphiquement :
+plot(som1, type = "property", property = as.numeric(expe.major.par.qr.tps), main="",  heatkey =F,palette.name=coolBlueHotRed)
+text(x=som1$grid$pts[,1],y=som1$grid$pts[,2],labels=expe.major.par.qr.tps,cex = 1,font=2)
+legend("bottom", legend=levels(df.selec$quart.temps), col= "black", pt.bg= coolBlueHotRed(4), pch = 21, title = "quart temps :")
+
+#RESTE
+#exp.unscaled.mode <- aggregate(as.numeric(df.selec$nom.experience),by=list(som1$unit.classif), FUN=summary, simplify=TRUE)[,2]
+
+```
+
+\restoregeometry
+
+Nous pouvons recouper expériences et quart temps :
+
+\newgeometry{left=0.8cm, right=0.5cm,bottom=3cm,top=0cm}
+
+```{r, echo=F, cache=T, fig.height=18, fig.width=18, fig.cap="expérience et quart temps (couleur) majoritaire par neurone",out.width="0.95\\paperwidth"}
+plot(som1, type = "property", property = as.numeric(expe.major.par.qr.tps) ,  main="",  heatkey =F,palette.name=coolBlueHotRed)
+text(x=som1$grid$pts[,1],y=som1$grid$pts[,2],labels=expe.major.par.neurone,cex = 1,font=2)
+legend("bottom", legend=levels(df.selec$quart.temps), col= "black", pt.bg= coolBlueHotRed(4), pch = 21, title = "quart temps :")
+```
+\restoregeometry
+
+
+Parmi les `r nrow(expe.par.qr.tps)` neurones, combien de neurones captent des données issues de plusieurs quart temps ?
+
+```{r, echo=F, cache=T, fig.height=8, fig.width=8, fig.cap="Répartition des expériences pour les neurones en ayant captés plusieurs", warning=F}
+sum.exp.qr.tps<- with(expe.par.qr.tps, rowSums(expe.par.qr.tps));
+#quelles neurones ont une de 4 colonnes égales au totales (ce qui signifie que les autres sont à zéro)
+table.neur.multi.qr.tps <- expe.par.qr.tps[(which(apply(expe.par.qr.tps==sum.exp.qr.tps,1, function(x) (sum(x)==0)))),]
+```
+Il y `r nrow(table.neur.multi.qr.tps)` neurones qui captent des données issues d'au moins deux quart-temps. Ce qui est donc la majorité...
+
+
+####Projection du temps sur les référents
+
+
+```{r, echo=F, cache=T, fig.height=18, fig.width=18, fig.cap="quart temps majoritaire par neurone",out.width="0.95\\paperwidth"}
+
+#construction d'une variable numérique représentant le temps écoulé
+df.selec$tps.ecoule <- as.numeric(df.selec$date)
+
+
+#transltation des valeurs pour chaque expérience de manière à ce que le 1er instant soit 0.
+trash <-sapply(list.expe.selec,function(nom.exp){ df.selec[df.selec$nom.experience==nom.exp,]$tps.ecoule <<- df.selec[df.selec$nom.experience==nom.exp,]$tps.ecoule -  min(df.selec[df.selec$nom.experience== nom.exp,]$tps.ecoule) })
+
+rm(trash)
+
+df.selec$tps.ecoule.norm <- df.selec$tps.ecoule
+
+#divsion des valeurs pour chaque expérience de manière à ce qu'elle soit compris entre 0 et 1.
+trash <-sapply(list.expe.selec,function(nom.exp){ df.selec[df.selec$nom.experience==nom.exp,]$tps.ecoule.norm <<- df.selec[df.selec$nom.experience==nom.exp,]$tps.ecoule.norm /  max(df.selec[df.selec$nom.experience== nom.exp,]$tps.ecoule.norm) })
+
+rm(trash)
+
+#time.com <- colorRamp(c('blue', 'red'))(df.selec$tps.ecoule.norm)
+
+
+#représentons cela graphiquement :
+#A REVOIR !!
+#plot(som1, type = "mapping", property = "df.selec$tps.ecoule.norm", main="",  heatkey =F,palette.name=coolBlueHotRed)
+#text(x=som1$grid$pts[,1],y=som1$grid$pts[,2],labels=expe.major.par.qr.tps,cex = 1,font=2)
+#colorRamp(c('blue', 'red'))(as.numeric(df.selec$tps.ecoule.norm))
+#plot(som1, type = "property", property =,  main=df.selec$tps.ecoule.norm,  heatkey =F,palette.name=coolBlueHotRed)
+
+```
+
+
+Sur chacun des graphiques qui forment la figure 15,  nous pouvons voir comment évolue les données d'une expérience entre les différentes neurones.
+
+\newgeometry{left=0.5cm, right=0.5cm,bottom=3cm,top=0cm}
+
+```{r, echo=F, cache=T, fig.height=18, fig.width=18, fig.cap="déplacement des données entre les neurones par expérience",out.width="0.95\\paperwidth"}
+
+list.gg <- lapply(list.expe.selec, function(nom.expe) { 
+  g<- ggplot(data = df.selec[df.selec$nom.experience==nom.expe,], aes (tps.ecoule.norm,nom.neurone)) + 
+    geom_line(aes(colour = tps.ecoule.norm)) + 
+    scale_color_continuous(name="temps écoulé)", low = "yellow",high = "red") + 
+    xlab("proportion du temps écoulé") + 
+    ylab("numéro du neurone") + ggtitle(paste("déplacement des données de",nom.expe,"entre les neurones",sep = " "))+ 
+    scale_y_continuous(breaks=seq(0,900,by = 10)) +
+    theme(axis.text.y=element_text(colour = 'black', size = 7)) 
+  })
+
+multiplot(list.gg[[1]],list.gg[[2]],list.gg[[3]],list.gg[[4]],list.gg[[5]],list.gg[[6]],list.gg[[7]],list.gg[[8]],cols = 2)
+
+#do.call("multiplot", as.list(list.gg,cols=2)) 
+
+```
+\restoregeometry
+
+Grâce à cette représentation, nous pouvons suivre l'évolution des référents dans le temps. Nous voyions que chacune des expériences produit des évolutions assez différentes. 
+-Pour certains, en particulier "PCo", "DE" ou "CLP", il existe de longues périodes où les données sont confinées à une région de la carte donnée entrecoupé de brèves périodes où semblent se produire des "sauts qualitatifs" : les données se déplacent soudainement dans une autre zone de la carte.
+-Pour d'autres, comme les expériences "AB" ou "DA", l'évolution est plus lente même si on peut observer encore des périodes où les données sont bien localisées à un endroit de la carte.
+-Pour finir, certaines expériences ("PCo2" en particulier) montre une grande variablilité et ne semble se fixer à aucun moment dans une période donnée.
+Comme nous avons vu qu'il existait  des régions assez distinctes dans la carte, chacune correspondant à une certaine combinaison de mesures, il va être intéressant de recouper les données en fonctions de ces régions.
+A l'oeil, il est cependant difficile de bien dinstiguer ces régions - surtout si on considère une unique expérience (on peut parler de "sous-régions"). Il est donc nécessaire de trouver des moyens de redécouper la carte afin de de distinguer les différentes régions.
+Il nous semble que les dendrogrammes pourraient être intéressants pour cela.
+
+##Dendrogrammes des neurones.
+
+Nous pouvons d'abord procéder à une classification de l'ensemble des neurones. Avec les dendrogrammes, il est possible de réaliser des rapprochements de certains vecteurs mulitdimensionelles. Un dendrogramme permet de clusteriser les données en fonction de la "proximité" des données. Différentes distances sont utilisées pour calculer la distance en dimension (en l'occurrence 4), nous utiliserons simplement la distance euclidienne généralisée.
+
+Nous allons utiliser les fonctions de la bibliothèque ggplot pour afficher un dendrogramme basé sur un échantillon le plus large possible sous la contrainte qu'il puisse être intégré dans un document pdf ou html. 
+
+Dans un premier temps, comme nous travaillons avec l'ensemble des référents, nOus allons travailler sur 300 neurones de notre "codebook" tirées au hasard (soit 1/3 de l'ensemble des neurones). 
+
+*Remarque : cette partie n'est pas terminée, nous sommes entrain d'implémenter de nouvelles fonctions permettant de travailler avec des dendrogrammes sur des données plus larges mais nous ne pouvons pour l'instant l'intégrer à ce travail.*
+
+```{r, echo=FALSE,cache=T}
+
+set.seed(10)
+#besoin d'un nb divisible par trois
+taille.echantillon <- 300
+sample.rows <- sample(x=1:nrow(som1$codes),size =taille.echantillon)
+sample.df <- som1$codes[sample.rows,]
+sample.df$row.noms <-  rownames(sample.df)
+dist.phy <- dist(sample.df)
+hClustering <- hclust(dist.phy)
+
+```
+
+```{r, echo=FALSE,cache=T}
+#enregistrement des données
+hcluster.save <- paste(data.path ,"hClustering.Rda",sep = "/")
+save(hClustering,file=hcluster.save)
+#enregistrement des données
+som1.save <- paste(data.path ,"som1.Rda",sep = "/")
+save(som1,file=som1.save)
+
+```
+
+Sur ce graphique, le dendrogramme (inversé), nous trouvons les neurones en ordonnée et la distance entre les neurones ou les groupes de neurones en abscisse. Par exemple, au niveau de la ligne rouge en pointillé, où la distance est de 2, tous les référents qui sont déjà regroupés par des segments verticaus ont une distance inférieure à 2. Nous voyions dans le cas présent que nous avons 3 groupes de référents pour lesquels la distance de chaque élément du groupe pris deux à deux est inférieure à 2.
+
+```{r, echo=FALSE,cache=T, fig.height=25, fig.width=15, fig.cap="dendrogramme de tous les référents", out.width=".9\\paperwidth"}
+
+ggdendrogram(hClustering, rotate = FALSE, size = 2,order()) +  
+  
+  geom_hline(yintercept=2,color="red", linetype="dashed")+ 
+  
+  theme(plot.title = element_blank(), axis.text.y=element_text(colour = 'white', size = 20, vjust = 1),
+        axis.text.x=element_text(colour = 'black', angle=90,size = 20, vjust = 1),
+        legend.text=element_text(size=20), legend.title=element_text(size=20), legend.position="bottom",
+        legend.direction="vertical", legend.margin=unit(2.5, "cm"), panel.margin =unit(0,"cm"))  +
+  coord_flip() 
+  
+  #geom_text(data = sample.df, aes(x = 1:taille.echantillon, y=-10, label=hClustering$labels[hClustering$order], hjust=rep(c(2.2,1.1,0.2), length.out=taille.echantillon), angle=0,colour=quart.temps), size=6) 
+  
+#a voir...
+#geom_segment(aes(x = x, y = y, xend = xend, yend = yend, size = n, colour = ), alpha = 0.5) 
+
+#plot(as.phylo(hClustering), type = "unrooted")
+```
+
+\newpage
+
+Cette carte est difficile à interpréter car il y a encore trop de référents. On voit tout de même des régions qui se forment. De plus, il me faut ajouter les légendes... (ce travail est en cours...)
+
+###Dendrogrammes par régions
+
+####Un exemple : l'expérience "DA"
+
+NOus allons faire un première étude sur une région en particulier. Nous avons choisi "DA" car l'évolution des données dans la carte des neurones alterne longue période dans certaines régions et courtes périodes de changement brusques.
+
+La région "DA" est constituée de `r length(which(expe.major.par.neurone=="DA"))` neurones.
+
+```{r, echo=FALSE,cache=T, fig.height=20, fig.width=20, fig.cap="dendrogramme des référents de l'expérience DA,  (méthode Ward)", out.width=".8\\paperwidth"}
+
+set.seed(7)
+#besoin d'un nb divisible par trois
+neur.region.DA <- som1$codes[which(expe.major.par.neurone=="DA"),]
+row.names(neur.region.DA) <- as.factor(which(expe.major.par.neurone=="DA"))
+dist.phy <- dist(neur.region.DA)
+hClustering <- hclust(dist.phy,method = "ward.D")
+
+ggdendrogram(hClustering, rotate = FALSE, size = 2,order(),labels = which(expe.major.par.neurone=="DA")) +
+  geom_hline(yintercept=0.5,color="black", linetype="dashed")+ 
+  theme(plot.title = element_blank(), axis.text.y=element_text(size=20, angle = 0),axis.text.x=element_text(size=20, angle = 0))  +
+  coord_flip()  
+ 
+```
+
+
+Il est ainsi possible de constituer 7 groupes (ou "clusters") de neurones à partir des 7 segments qui viennent couper la ligne pointillée au niveau de la distance 0.5. Les neurones 47 et 55 constituent des groupes à eux tous seuls.
+
+
+```{r, echo=FALSE,cache=T, fig.height=10, fig.width=10, fig.cap="dendrogramme des référents de l'expérience DA groupés en 7 groupes (méthode UPMGA)", out.width=".9\\paperwidth"}
+
+#source: Didzis Elferts & Sandy Muspratt 
+#voir: http://stackoverflow.com/questions/21474388/colorize-clusters-in-dendogram-with-ggplot2
+
+cut <- 7    # Number of clusters
+neur.region.DA <- som1$codes[which(expe.major.par.neurone=="DA"),]
+row.names(neur.region.DA) <- as.factor(which(expe.major.par.neurone=="DA"))
+hClustering <- hclust(dist(neur.region.DA), "ave")              # heirarchal clustering
+dendr <- dendro_data(hClustering, type = "rectangle") # convert for ggplot
+clust <- cutree(hClustering, k = cut)               # find 'cut' clusters
+clust.df <- data.frame(label = names(clust), cluster = clust)
+
+# Split dendrogram into upper grey section and lower coloured section
+#1) arranger l'ordonnée des segments du plus haut au plus bas
+height <- unique(dendr$segments$y)[order(unique(dendr$segments$y), decreasing = TRUE)]
+#le nombre de segments hoizontaux (= nb d'ordonnées uniques) est égal au nb de groupes +1 !
+#(rmq : penser en récursif : 1 segment = 2 grps,  segements = 3grps...)
+cut.height <- mean(c(height[cut], height[cut-1]))
+#séparation des segments horizontaux
+dendr$segments$line <- ifelse(dendr$segments$y == dendr$segments$yend &
+                                dendr$segments$y > cut.height, 1, 2)
+#séparation des segments verticaux
+dendr$segments$line <- ifelse(dendr$segments$yend  > cut.height, 1, dendr$segments$line)
+
+# Number the clusters
+#marque les segments racines de chaque clusters par "-1"
+dendr$segments$cluster <- c(-1, diff(dendr$segments$line))
+change <- which(dendr$segments$cluster == 1)
+for (i in 1:cut) dendr$segments$cluster[change[i]] = i + 1
+dendr$segments$cluster <-  ifelse(dendr$segments$line == 1, 1, 
+                                  ifelse(dendr$segments$cluster == 0, NA, dendr$segments$cluster))
+dendr$segments$cluster <- na.locf(dendr$segments$cluster) 
+
+# Consistent numbering between segment$cluster and label$cluster
+clust.df$label <- factor(clust.df$label, levels = levels(dendr$labels$label))
+clust.df <- arrange(clust.df, label)
+clust.df$cluster <- factor((clust.df$cluster), levels = unique(clust.df$cluster), labels = (1:cut) + 1)
+dendr[["labels"]] <- merge(dendr[["labels"]], clust.df, by = "label")
+
+# Positions for cluster labels
+n.rle <- rle(dendr$segments$cluster)
+N <- cumsum(n.rle$lengths)
+N <- N[seq(1, length(N), 2)] + 1
+N.df <- dendr$segments[N, ]
+N.df$cluster <- N.df$cluster - 1
+
+# plot the dendrogram; note use of color=cluster in geom_text(...)
+ggplot() + 
+  geom_segment(data=segment(dendr), aes(x=x, y=y, xend=xend, yend=yend, size=factor(line),colour=factor(cluster) ), lineend = "square", show_guide = FALSE) + 
+    scale_colour_manual(values = c("grey60", rainbow(cut))) +
+    scale_size_manual(values = c(.1, 1)) +
+   geom_text(data = N.df, aes(x = x, y = y, label = factor(cluster),  colour = factor(cluster + 1)), 
+      hjust = -1, show_guide = FALSE) +
+   geom_text(data = label(dendr), aes(x, y, label = label, colour = factor(cluster)), 
+       hjust = 1.3, size = 3, show_guide = FALSE) +
+  labs(x = NULL, y = NULL) +
+  coord_flip() +  
+  theme(axis.line.y=element_blank(),
+        axis.ticks.y=element_blank(),
+        axis.text.y=element_text(),
+        axis.title.y=element_blank(),
+        panel.background=element_rect(fill="white"),
+        panel.grid=element_blank())
+
+```
+
+\newpage
+
+
+
+###Dendrogramme des autres expériences
+
+
+A SUIVRE...
+
+
+```{r, echo=T,cache=T}
+
+
+#enregistrement des données
+rda.save <- paste(data.path ,"data-frame-all-expe.Rda",sep = "/")
+save(df.all,file=rda.save)
+
+```
+
+
+\newpage
+
+###Nouvelle projection du temps sur les groupes de référents
+
+####DA
+
+```{r, echo=F, cache=T}
+
+#construction d'une variable numérique représentant le temps écoulé
+df.selec$tps.ecoule <- as.numeric(df.selec$date)
+
+
+#transltation des valeurs pour chaque expérience de manière à ce que le 1er instant soit 0.
+trash <-sapply(list.expe.selec,function(nom.exp){ df.selec[df.selec$nom.experience==nom.exp,]$tps.ecoule <<- df.selec[df.selec$nom.experience==nom.exp,]$tps.ecoule -  min(df.selec[df.selec$nom.experience== nom.exp,]$tps.ecoule) })
+
+rm(trash)
+
+df.selec$tps.ecoule.norm <- df.selec$tps.ecoule
+
+#divsion des valeurs pour chaque expérience de manière à ce qu'elle soit compris entre 0 et 1.
+trash <-sapply(list.expe.selec,function(nom.exp){ df.selec[df.selec$nom.experience==nom.exp,]$tps.ecoule.norm <<- df.selec[df.selec$nom.experience==nom.exp,]$tps.ecoule.norm /  max(df.selec[df.selec$nom.experience== nom.exp,]$tps.ecoule.norm) })
+
+rm(trash)
+```
+
+
+Sur chacun des graphiques qui forment la figure 15,  nous pouvons voir comment évoluent les données d'une expérience entre les différentes neurones.
+
+
+```{r, echo=F, cache=T, fig.height=12, fig.width=12, fig.cap="déplacement des données entre les groupes de neurones par expérience"}
+  
+  #ajouter une colonne pour le cluster/groupe
+  df.DA <- df.selec[df.selec$nom.experience=="DA",]
+  df.DA <- merge(x = df.DA, y= clust.df, by.x = "nom.neurone", by.y = "label")
+  
+  df.DA$cluster <- as.numeric(df.DA$cluster) 
+  
+  ggplot(data = df.DA, aes (tps.ecoule.norm,cluster)) + 
+    geom_point(aes(colour = tps.ecoule.norm), size=4) + 
+    scale_color_continuous(name="temps écoulé)", low = "yellow",high = "red") + 
+    xlab("proportion du temps écoulé") + 
+    ylab("numéro du cluster") + ggtitle(paste("déplacement des données de","DA","entre les clusters",sep = " "))+
+    scale_y_discrete(breaks=seq(1,7))
+ 
+
+```
+
+Nous pouvons voir au travers ce graphique plusieurs nouveaux détails. Il serait notamment intéressant de se pencher sur les groupes 1, 2 et 3 qui sont composés d'un ou deux neurones. Par exemple, on peut voir que le cluster n°2 qui ne contient qu'un neurone et ne capte les données correspondant aux premiers instants de l'expérience. Il est donc possible que cela corresponde simplement à une période d'initialisation et que l'on décide de mettre de côté les premières secondes de l'expérience car elles ne sont pas pertinentes pour ce que l'on recherche.
+
+Grâce à cette représentation, nous pouvons mieux suivre l'évolution des référents dans le temps entre des clusters de neurones similaires. Nous avons la confirmation que les données restent sur dans des zones de référents pendant un certain temps puis se déplacent brusquement. Nous pouvons reproduire maintenant cette méthode sur l'ensemble des données.
+
+
+\newpage
+
+
+#Conclusion :
+
+Nous avons montré que les cartes de Kohonen permettent de distinguer les individus sans pour autant savoir si elle donne la possiblité de distinguer différentes périodes (et donc différentes émotions exprimées pendant ces périodes) pour chacun de ces individus. Par ailleurs, puisqu'il existe de nombreuses autres expériences réalisées, il faut tester si certains individus n'ont pas des caractéristiques assez similaires pour être captés par les mêmes neurones. Le moyen de tester cela sera d'ajouter de nouvelles expériences afin de voir si les cartes sont capables d'en regrouper ensemble. Il faudra aussi peut-être procéder à des rectifications supplémentaires sur les données ou au moins certaines variables (prise en compte d'offset d'une expérience à l'autre...).
+
+Par ailleurs, il reste un travail d'étiquetage des référents qui doit être réalisé avec l'expert afin de déterminer dans chaque expérience si le passage d'un groupe de neurones à un autre correspond à des changements émotionnelles pertinents.  Les derniers graphiques, réalisés grâce aux dendrogrammes et à la clusterisation des neurones sur l'expérience "DA" peuvent former une base pour présenter à cet expert des axes pour qu'il puisse étiqueter les régions de la carte et finalement les différentes périodes d'une expérience. Il faut maintenant généraliser la méthode à l'ensemble des expériences et donner des moyens de visualiser le codebook des "super-référents" que sont les clusters.
+Ces clusters pourront aussi nous aider à poursuivre notre travail de nettoyage en nous permettant de mieux dinstinguer les données aberrantes ou dignes d'intérêt.
+
+
+
+
+[^1]:voir https://cran.r-project.org/web/packages/kohonen/kohonen.pdf
+[^2]:voir http://www.jstatsoft.org/v21/i05/paper
+[^3]:voir les fichiers *experience_AB.html* et *experience_LM.html* dans le dossier joint en annexe.

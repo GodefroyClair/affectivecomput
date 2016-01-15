@@ -1,0 +1,47 @@
+h1 {
+    font-size: 24px;
+}
+
+.title {
+	 text-align: center;
+	 margin : 2px;
+	 
+}
+.subtitle {
+	 text-align: center;
+	 font-style: italic;
+	 font-size: 20px;
+	 margin-bottom : 4px;
+	 
+}
+
+.author {
+	text-align: center;
+}
+
+.date {
+	text-align: center;
+}
+
+h2 {
+    font-size: 20px;
+}
+
+
+h3 {
+    font-size: 18px;
+}
+
+
+h4 {
+    font-size: 16px;
+}
+
+
+h5 {
+    font-size: 14px;
+}
+
+h6 {
+    font-size: 12px;
+}

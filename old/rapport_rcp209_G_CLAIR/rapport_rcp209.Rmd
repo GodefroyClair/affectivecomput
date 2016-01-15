@@ -1,0 +1,920 @@
+---
+title: "Mesure physiologique de joueurs de jeu vidéo (1)"
+subtitle: "Première partie : exploration et nettoyage des données"
+author: "Godefroy Clair"
+date: "Monday, July 13, 2015"
+output:
+  pdf_document:
+    fig_caption: yes
+    latex_engine: xelatex
+    number_sections: yes
+    toc: yes
+    toc_depth: 3
+  html_document:
+    css: C:/Users/Godefroy/Google Drive/ProjetPsychoGame/style/gamer-expe.css
+    number_sections: yes
+    toc: yes
+  word_document: default
+---
+
+```{r, echo=FALSE, cache= FALSE ,comment=''}
+##Laisser le cache à False, sinon les bibliothèques ne sont pas chargées...
+require(knitr)
+require(plyr)
+require(ggplot2)
+require(reshape2)
+require(grDevices)
+require(kohonen)
+```
+
+```{r, echo=F}
+#Utilis par la suite...
+
+# Multiple plot function
+#
+# ggplot objects can be passed in ..., or to plotlist (as a list of ggplot objects)
+# - cols:   Number of columns in layout
+# - layout: A matrix specifying the layout. If present, 'cols' is ignored.
+#
+# If the layout is something like matrix(c(1,2,3,3), nrow=2, byrow=TRUE),
+# then plot 1 will go in the upper left, 2 will go in the upper right, and
+# 3 will go all the way across the bottom.
+#
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+  library(grid)
+
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+
+  numPlots = length(plots)
+
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                    ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+
+ if (numPlots==1) {
+    print(plots[[1]])
+
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
+    }
+  }
+}
+
+```
+
+
+
+
+#L'expérience dont sont issues les données
+
+Au cours de la période allant du 14 février 2014 au 9 mars 2014, dans le cadre de sa thèse sous la direction de Eric Gressier-Soudan, Viviane Gal a réalisé 67 expériences expériences au près de 24 individus.
+L'objectif de la thèse en question est de permettre l'établissement d'une cartographie des émotions à partir de biosignaux et d’observations. Il est donc nécessaire de réaliser des mesures qui permettent de poser une classification associant les signaux et des états émotionnels.
+Ces mesures ont été réalisées au cours d'expériences mettant les participants aux prises avec différents média dont on peut supposer qu'elles suscitent chez eux un certain nombre d'émotions. Avec les mesures en question, l'objectif est de décrire ces émotions à l'aide d'outils statistiques, graphiques et autres algorithmes d'apprentissage.
+
+##Description de l'expérience
+
+Durant chaque expérience, différentes tâches sont proposées aux participants :
+- Regarder un film : une succession d’images et d’extraits de films
+- Un test de concentration / méditation en utilisant les ondes cérébrales
+- Une expérience à base de sensations fortes, de stress et d'"ambiance de peur"
+- jouer à un jeu de stratégie pendant une durée de 20 minutes
+
+Chaque expérimentation permet la capture de données de différents types (physiologiques, images, réponses). Les données physiologiques, mesurées à intervalle de temps régulier (31 millisecondes) consistent en un certain nombre de mesures réalisées par le biais de capteurs sur un individu pendant l'expérience.
+Les données physiologiques mesurées sont :
+1. la température cutanée (T°) en degré celcius
+2. la fréquence cardiaque (FC) en battement par minute
+3. l'activité electrodermale (GSR) en microsiemens
+4. la respiration (FR) en pourcentage de déformation du thorax.
+
+##Les appareils de mesure 
+
+Différents éléments ont été utilisés pour l'expérience : 
+-3 capteurs sans fil,
+-1 convertisseur analogique numérique,
+-1 logiciel de capture.
+
+Tout ces appareils/logiciels sont fournis par la société TEA. Les capteurs font partie de la gamme **T-Sens**. Nous allons maintenant les décrire plus en détail.
+
+###Le capteur sans fil "CFM" (réf. C2030)
+
+Selon les spécifications fournies par le constructeur, il s'agit d'un "module à transmission sans fil pour la mesure de la fréquence cardiaque grâce à une ceinture thoracique"[^1]. Voir image \label{cfm}
+
+![Image du capteur CFM\label{cfm}](C:\Users\Godefroy\Google Drive\ProjetPsychoGame\img\CFM.jpg "Photographie d'un capteur CFM permettant de calculer la fréquence cardiaque")
+
+Le tableau suivant est aussi fourni dans le document :
+
+**Caractéristiques du capteur :**
+
+|**Caractéristique**  | **Valeur** |
+|:----------|:------------------:|
+| Etalonnage | Pas d’étalonnage |
+|    Unité   | BPM |
+|Plage mes.  | 10 – 220 BPM |
+|  Fréquence | 16Hz |
+| Résolution | 1 BPM |
+|Compatibilité | Polar Non codé ou équivalent |
+
+
+###Le capteur sans fil "GSR + T°" (réf. C2034)
+
+Toujours selon le constructeur, il s'agit d'un "module à transmission sans fil combinant à la fois la mesure de la conductivité électrodermale et de la température cutanée" - voir image \label{gsr}. Il mesure l'activité electrodermale et la température à la surface de la peau grâce à "deux électrodes [qui] se fixent à l’extrémité de deux doigts"[^2]. 
+En réalité, afin de ne pas gêner le participant dans ses mouvements, les expérimentateurs ont décidé - avec l'accord du fabriquant - de faire la mesure *aux doigts de pied*.
+L'objectif concernant la mesure de la conductivité électrodermale est de mesurer l'intensité du courant électrique à la surface de la peau, ce qui est généralement vu comme une bonne approximation de la transpiration.
+
+
+![Image du capteur GSR \label{gsr}](C:\Users\Godefroy\Google Drive\ProjetPsychoGame\img\GSR.jpg "Photographie d'un capteur GSR permettant de cacluler l'activité electro-dermale et la température")
+
+\break
+<br/>
+
+**Caractéristiques du capteur :**
+
+|**Caractéristique**  | **GSR** | **T°** |
+|:----------|:------------------:|:------------:|
+|Nombre de voies | 1 | 1 |
+|Etalonnage | Pas d’étalonnage | Pas d’étalonnage |
+|Unité |µS (Siemens) | °C |
+|Fréquence | 32Hz | |
+|Résolution | 16 Bits | 0.05°C |
+|Plage de mesure | 0 -30µS | -40°C à 120°C |
+|Linéarité | N/A | 0.5°C |
+|Précision | N/A |0.5°C |
+||||
+|**Caractéristiques électriques :** |  |
+|Alimentation Accumulateur | 190mAh| 
+||||
+|**Caractéristiques mécaniques :** | |
+|Dimensions | 52mm x 25mm x 14mm |
+|Longueur câbles + électrodes |  200mm| 
+|Poids | 20g| 
+|**Conditions d’utilisation**| | 
+|T° | 0°C à 40°C | 
+|Humidité |  < 60% | 
+
+
+
+
+###Le capteur sans fil "Respirations" (réf. C2033)
+
+le capteur est un "module à transmission sans fil pour la mesure des mouvements thoraciques ou abdominaux. Le module (ceinture inclue) fournit des informations permettant d’analyser le rythme respiratoire et l’amplitude des respirations"[^3]. Voir image \label{respi}
+
+![Image du capteur de respiration\label{respi}](C:\Users\Godefroy\Google Drive\ProjetPsychoGame\img\Respi.jpg "Photographie d'un capteur de la respiration")
+
+**Caractéristiques du capteur :**
+
+|**Caractéristique**  | **Valeur** |
+|:----------|:------------------:|
+|Nombre de voies | 1|
+|Etalonnage | Pas d’étalonnage |
+|Unité | % (déformation) |
+|Fréquence | 32Hz
+|Résolution | 0.01%
+||||
+|**Caractéristiques électriques :** | |
+|Alimentation Accumulateur | 190mAh |
+|Autonomie | 8h |
+|Temps de chargement | 3h |
+||||
+|**Caractéristiques mécaniques :** | |
+|Dimensions | 52mm x 25mm x 14mm|
+|Poids | 20g |
+|Longueur ceinture | 1m |
+|Plage de mesure | 0-75% |
+|Allongement maximal | 70mm (75%) |
+|**Conditions d’utilisation :** | 
+|T° | 0°C à 40°C|
+|Humidité |  < 60% |
+
+
+##Les données mesurées
+
+###La température cutanée
+
+C'est la température à la surface du corps, prise par le biais d'un capteur aux orteils (pieds nus). Le fabriquant a expliqué lors d'une conversation avec Viviane Gal que cette température est bien influencée par la température du corps mais aussi par la température environnante. Il sera nécessaire de procéder à des mesures complémentaires pour mesurer l'impact théorique de la température ambiante sur la température fournie par le capteur et d'évaluer leur influence sur les mesures obtenues.
+
+###La respiration
+
+La réspiration est mesurée par une ceinture abdominale sur laquelle est disposé un capteur mesurant la nombre de battement par minute. Là encore, lors de l'expérience, certains effets parasites ont pu perturber la bonne mesure de la respiration. En effet, la ceinture se place autour de l'abdomen et se serre à l'aide de crans. Or, il n'y a pas eu ni vérification sur le cran choisi, ni mesure de la circonférence de l'abdomen. Cela remet en question la possiblité de faire des comparaisons entre individus. En effet, si la ceinture était très serrée pour une personne par rapport à une autre, le même mouvement de l'abdomen pourrait ne pas donner la même mesure. Il est donc important de faire des mesures complémentaires pour vérifier l'influence de ce phénomène.
+
+###La fréquence cardiaque 
+
+La fréquence cardiaque est mesurée par une ceinture abdominale qui "sonde" la fréquence cardiaque par le biais d'un capteur.
+
+###L'activité electrodermale
+
+L'activité electrodermale mesure l'insensité du courant à la surface de la peau. Elle donne une approximation de la transpiration d'une personne. La prise de mesure au pied doit là aussi amener à réfléchir à la pertinence des mesures. La transpiration au pied est-elle pertinente dans l'exercice en question ?
+
+#Les données brutes
+
+Nous avons reçu de Viviane Gal un fichier par expérience. Ce fichier est un tableau au format "csv" comportant 5 colonnes : 
+- la date au format "J/M/AAAA H:Mn:S.m" (J : jour, M : mois, A : année, H : heure, Mn : minutes, S : secondes, m : millisecondes)
+- la respiration : décimal positif ou négatif, 3 chiffres après la virgule
+- l'activité électrodermale : décimal positif ou négatif, 3 chiffres après la virgule
+- la température : décimal positif, 3 chiffres après la virgule
+- la fréquence cardiaque : entier positif
+
+La figure 1 représente les premières lignes des données pour l'expérience AB.
+
+![exemple d'un tableau de données reçu](C:\Users\Godefroy\Google Drive\ProjetPsychoGame\img\ex-donnees-brutes.png "Exemple d'un tableau de données reçu")
+
+*Les fichiers qui nous ont été donnés pour le moment sont au nombre de 10*. Le nom de chaque fichier est une concaténation des initiales de la personne ayant fait le test avec un numéro si la personne a fait plusieurs expériences et avec le terme "SurEchantillonHF".
+Par exemple, pour l'individu A.B., le fichier sera "AB_SurEchantillonHF.csv".
+
+##Modification "à la main"
+
+Pour pouvoir importer les données de manière simple et "automatisée", il faut uniformiser le contenu des fichiers. Par exemple, tous les fichiers ne contiennet pas obligatoirement les noms des variables, nous avons donc ajouter des nouveaux fichiers avec le nom des variables inséré dans la première ligne en pré-traitement. Nous avons ajouté des dates factices lorsqu'elle manquaient en "copiant-collant"  les dates à partir du fichier "AB"(l'important étant que les intervalles de temps soit de 9 ms).
+
+Le nom de ces fichiers est le nom du fichier original avec le suffixe "_header" avant le format.
+
+#Importation, vérification et nettoyage des données sous 'R'
+
+Nous avons décidé de traiter les données sous le logiciel 'R' très pratique pour gérer des données au format csv, qui a surtout comme avantage :
+- d'être, ainsi que ces bibliothèques, sous licence libre (généralement GPL-2 ou 3[^4],
+- d'avoir de bonnes bibliothèques pour les algorithmes d'apprentissage, de réseaux de neurones, etc.,
+- d'avoir de bonnes bibliothèques de modélisations graphiques (notamment *ggplot2*, très flexible)
+
+##Bibliothèques requises pour le travail sous 'R'
+
+
+
+```{r setup, include=FALSE}
+opts_chunk$set(dev = 'png')
+knitr::opts_chunk$set(message = FALSE)
+```
+
+##Importation des données
+
+###L'objet choisi pour l'analyse sous R : le data frame
+
+Les données qui sont traitées sous le logiciel "R" ont été mises sous la forme d'un *data frame*. 
+Les *data frames* sont de simples tables de valeurs où chaque colonne correspond à un suite de valeur d'une variable d'un type donné (entier, booléén, chaîne de caractère,...) et chaque ligne a un n-upplet (une instance) de chacune des variables. Chaque colonne a de plus un nom et chaque ligne peut aussi en avoir un.
+
+Dans cette partie, nous avons créé autant de "data frame" qu'il y a d'expériences réalisées (donc 10). Dans chaque data frame, une ligne correspond à un instant d'une expérience et chaque colonne indique les différentes mesures.
+
+Nous utilisons une fonction load.file pour charger les données en mémoire dans des data frames (dont le nom sera data. concaté aux initiales de l'individu, par exemple data.AB pour l'expérience avec l'utilisateur A.B.)
+
+
+##Tranformation des données (nettoyage, mises en forme, décomposition, marquage)
+ 
+
+chargement des données au format numérique (sauf 1ère colonne au format "date", POSIX).
+Les noms des variables sont :
+-date,
+-respiration,
+-activite.electrodermale,
+-temperature,
+-frequence.cardiaque
+
+
+```{r, echo = F, cache=T}
+mac.gd.path <- "/Users/godot/githubRepos/"
+hp.gd.path <- "C:/Users/Godefroy/githubRepos/"
+
+
+if(Sys.info()['nodename']=="THIM")gd.path <- hp.gd.path else
+  gd.path <- mac.gd.path
+data.path <- paste(gd.path,"affectiveComputing/data/",sep = "/")
+
+load.file <- function(filename){
+  
+  #chargement d'un fichier csv dans un data frame, le CSV a une ligne pour les noms de variable (header = TRUE), les variables des colonnes sont respectivement de type chaîne de caractère et numérique (x3) au chargement
+  df <-read.csv2(file = filename, sep=";",header = TRUE,dec=",",colClasses=c("character", rep("numeric",4)),na=NA)
+  
+  #modification des noms de variables
+  names(df)<-c("date","respiration", "activite.electrodermale", "temperature", "frequence.cardiaque")
+
+  #mise au format data/time de la 1ère variable de mesure de l'écoulement du temps
+  df$date<-strptime(df$date,format="%d/%m/%Y %H:%M:%OS")
+  
+  
+  #ajout d'un variable catégorielles qui divise la durée de l'expérience en quatre quart temps
+  #utile pour la vérification des données par la suite.
+  df$quart.temps <- cut(1:nrow(df), breaks = 4, labels = c("1er","2eme","3eme","4eme"))
+  
+  #ajout d'une variable pour l'origine de l'expérience
+  #en deux temps : 1) retirer ce qui est à droite du dernier "/" 2) on retire l'extension (".csv")
+  filename <- gsub(".*/","",filename)
+  df$nom.experience <- gsub("_.*", "",filename)
+
+  return(df)
+}
+
+#en argument : la liste des noms des fichiers csv à importer
+load.data <- function(exp){
+  filename <- paste(data.path,exp, "_SurEchantillonHF_header.csv", sep="")
+  # print(filename)
+  
+  #permet de lancer la fonction load.file sur la liste passée en arguments
+  assign(paste("data.", exp, sep=""), load.file(filename), envir = .GlobalEnv)
+
+}
+
+list.exp <- c("AB", "ST","DA", "LM", "FS1", "PCo", "PCo2", "PCo3", "CW","HL","CLP", "DE")
+
+
+list.df <- lapply(list.exp,load.data)
+
+df.all <- do.call("rbind", list.df)
+df.all$nom.experience <- factor(df.all$nom.experience)
+
+```
+
+
+##Vérification des données
+
+**Dimension des data frames :**
+
+| **Data frame** | **dimension** |
+|:---------|:------------|
+| "AB" | `r paste(nrow(data.AB),"x",ncol(data.AB))`|
+| "DA" | `r paste(nrow(data.DA),"x",ncol(data.DA))`|
+| "CW" | `r paste(nrow(data.CW),"x",ncol(data.CW))`|
+| "FS1" | `r paste(nrow(data.FS1),"x",ncol(data.FS1))`|
+| "HL" | `r paste(nrow(data.HL),"x",ncol(data.HL))`|
+| "LM" | `r paste(nrow(data.LM),"x",ncol(data.LM))`|
+| "PCo" | `r paste(nrow(data.PCo),"x",ncol(data.PCo))`|
+| "PCo2" | `r paste(nrow(data.PCo2),"x",ncol(data.PCo2))`|
+| "PCo3" | `r paste(nrow(data.PCo3),"x",ncol(data.PCo3))`|
+| "ST" | `r paste(nrow(data.ST),"x",ncol(data.ST))`|
+| "CLP" | `r paste(nrow(data.CLP),"x",ncol(data.CLP))`|
+| "DE" | `r paste(nrow(data.DE),"x",ncol(data.DE))`|
+
+Représentation des 5 premières données pour l'expérience AB pour exemple :
+```{r, echo=F, cache=T, comment=""}
+opts_chunk$set(results='asis')
+
+paste((kable(head(data.AB[,1]),col.names = "       date")),kable(head(data.AB[,2:5])))
+```
+
+Y a-t-il des données manquantes ?
+
+| **Data frame** | **dimension** |
+|:---------|:------------|
+| "AB" | `r ifelse(!any(is.na(data.AB)),"aucune","existe(s)")`|
+| "DA" | `r ifelse(!any(is.na(data.DA)),"aucune","existe(s)")`|
+| "CW" | `r ifelse(!any(is.na(data.CW)),"aucune","existe(s)")`|
+| "FS1" | `r ifelse(!any(is.na(data.FS1)),"aucune","existe(s)")`|
+| "HL" | `r ifelse(!any(is.na(data.HL)),"aucune","existe(s)")`|
+| "LM" | `r ifelse(!any(is.na(data.LM)),"aucune","existe(s)")`|
+| "PCo" | `r ifelse(!any(is.na(data.PCo)),"aucune","existe(s)")`|
+| "PCo2" | `r ifelse(!any(is.na(data.PCo2)),"aucune","existe(s)")`|
+| "PCo3" | `r ifelse(!any(is.na(data.PCo3)),"aucune","existe(s)")`|
+| "ST" | `r ifelse(!any(is.na(data.ST)),"aucune","existe(s)")`|
+| "CLP" | `r ifelse(!any(is.na(data.CLP)),"aucune","existe(s)")`|
+| "DE" | `r ifelse(!any(is.na(data.DE)),"aucune","existe(s)")`|
+
+Il existe effectivement des données manquantes pour PCo :
+```{r, echo=F, cache=T, comment=""}
+data.PCo[is.na(data.PCo),]
+```
+
+A quelles lignes et quelle(s) colonne(s) ?
+```{r, echo=F, cache=T, comment=""}
+#arr.ind pour garder la dimensio
+l.na <- which(is.na(data.PCo),arr.ind = T)
+ncol.1 <- l.na[1,2]
+ncol.2 <- l.na[2,2]
+l.na
+```
+
+Vu qu'il ne s'agit que de deux données sur plus de 27000, nous proposons de copier la valeur précédente à la place de la donnée manquante.
+
+```{r, echo=TRUE, cache=T, comment=""}
+#remplace la valeur manquante par la valeur précédente de la même colonne
+data.PCo[l.na[1],ncol.1] <- data.PCo[l.na[1]-1,ncol.1]
+data.PCo[l.na[2],ncol.2] <- data.PCo[l.na[2]-1,ncol.2]
+```
+
+```{r, echo=FALSE, cache=T, comment=""}
+#idem pour df.all
+l.na <- which(is.na(df.all),arr.ind = T)
+ncol.1 <- l.na[1,2]
+ncol.2 <- l.na[2,2]
+df.all[l.na[1],ncol.1] <- df.all[l.na[1]-1,ncol.1]
+df.all[l.na[2],ncol.2] <- df.all[l.na[2]-1,ncol.2]
+
+```
+
+
+# Exploration graphique et statistique des données
+
+Nous allons utiliser la bibliothèque ggplot2[^5] développée par Hadley Wickham et Winston Chang et qui implémente la théorie de la "grammaire des graphiques" de Leland Wilkinson[^6]  sous 'R'. Cette théorie permet de construire des graphiques de manière modulaire et en décomposant les différentes étapes de création d'un graphique. Ce qui permet 1) de facilement modifier des graphiques 2) de mentalement avoir une meilleure idée du processus de création d'un graphique et des différents choix, combinaisons disponibles.
+
+
+
+##A propos des outils graphiques de visualisation utilisés
+
+L'objectif principal est de se donner une idée de la distribution et de la dispersion des données. En particulier, nous voulons comparer les valeurs mesurées à celles annoncées par le constructeur.
+
+Nous allons représenter les données par expérience en utilisant plusieurs outils permettant d'améliorer la qualité des graphiques :
+
+- nuage de points type "jitter" (ou simplement Jitter) : sur la base d'un 'scatter plot' classique, chaque donnée est déplacée horizontalement et verticalement selon une valeur déterminée - pour chaque donnée - par un tirage aléatoire uniforme dans un intervale). L'avantage de ce graphique est de donner facilement une idée de la densité des données. Cela est souvent particulièrement intéressant lorsque les données sont à la limite entre le discret et le continue ou lorsqu'elles sont condensées autour de certaines valeurs.
+
+Exemple :
+Créons un ensemble de 1000 points dont l'abcisse est compris entre 1 et 10 et choisi par tirage uniforme et l'ordonnée est une fonction linéaire de l'abscisse auquel s'ajoute un "bruit" variant entre 0 et 5 suivant une loi du chi-deux. Cela a permet de donner un effet "longue traîne" au nuage de points.
+
+```{r, echo = T, cache=T}
+set.seed(7)
+nb.data=1000
+x <- sample(1:10, nb.data, TRUE)
+y <- 3*x + rchisq(nb.data, 0, 2)
+```
+
+Avec un "scatter plot" habituel, nous obtenons le graphique suivant :
+
+```{r, echo = T, cache=T}
+qplot(x,y)
+```
+
+Par construction, l'abscisse d'un point ne peut prendre qu'un nombre limité de valeur, beaucoup de données sont  donc "superposées". Il est difficile de se donner une idée de la variation de densité dans le nuage de point. En ajoutant un "bruit" uniforme à l'abscisse dans un intervale appropriée (ici 0.2), "jitter"" nous permet d'avoir une meilleure idée du nuage de point.
+
+```{r, echo = T, cache=T}
+qplot(x,y,position = position_jitter(w = 0.2))
+```
+
+
+-"Alpha" : ce paramètre est aussi utiliser pour réduire la perte d'information due à la superposition de données. l'idée est de donner une certaine transparence aux formes représentant chaque donnée. Lorsque ces formes sont superposées sur le graphique, la couleur des pixels correspondant à la partie superposée sera plus foncée.
+
+En poursuivant notre exemple précédant, ajoutons un niveau de transparence à notre premier graphique :
+```{r, echo = T, cache=T}
+qplot(x,y,alpha=I(0.25))
+```
+
+Notons qu'en combinant "Alpha" à d'autres options des graphiques, il peut être utilisé dans d'autres contextes. Par exemple, lorsqu'on représente plusieurs nuages de points sur un même graphique, on peut utiliser alpha et les couleurs pour distinguer des nuages de points en partie superposés.
+
+```{r, echo = T, cache=T, fig.width = 7, fig.height = 7}
+y1 <- 3*x + rchisq(nb.data, 0, 2)
+y2 <- 3*x + rchisq(nb.data, 0, 2)+1
+df = as.data.frame(list(rep(x,2),c(y1,y2),c(rep("groupe1",1000),rep("groupe2",1000))))
+colnames(df) <- c("x","y", "groupe")
+p1 <- ggplot(df, aes(x=x, y=y, color=groupe)) + geom_point(alpha=I(1)) + ggtitle("Nuage de points pour deux groupes") + scale_color_manual(values=c( "#E69F00", "#56B4E9"))
+p2 <- ggplot(df, aes(x=x, y=y, color=groupe)) + geom_point(alpha=I(.4)) + ggtitle("Avec \"alpha\"") + scale_color_manual(values=c( "#E69F00", "#56B4E9"))
+p3 <- ggplot(df, aes(x=x, y=y, color=groupe)) + geom_point(position = position_jitter(w = 0.1, h = 0.1),alpha=I(.4)) + ggtitle("Avec \"alpha\" et \"jitter\"") + scale_color_manual(values=c( "#E69F00", "#56B4E9")) 
+multiplot(p1,p2,p3,cols = 1)
+```
+
+- "Boxplot" ou "boîte à moustache", c'est une manière beaucoup plus fréquente de représenter un ensemble de données numériques. Dans un graphique dont l'échelle horizontale est mise en correspondance avec l'ensemble des valeurs des données, on dessine un rectangle allant horizonalement du premier quartile au troisième quartile et coupé par la médiane en son milieu. Les premier et neuvième déciles sont représentés par deux traits reliés au rectangle par deux segments. Enfin, chacune des données non comprises entre ces déciles est représentées par des points (notamment les maxima et "outliers" ou données aberrantes) sur le graphique.
+La grande simplicité et concisions que les boxplots apportent sont particulièrement intéressants pour procéder à des comparaisons entre différentes distributions de données.
+Pour se donner une première idée de la forme des donnes et procéder à des comparaisons entre expériences, une combinaison de graphique de type "Jitter" et "Boplot" nous semble particulièrement adaptée.
+
+
+##Représentations graphiques des variables par expériences
+
+Pour chaque variable successivement, nous allons donc proposer un nuage de points type "jitter" et un "boxplot" afin d'observer si la variation et le spectre des données correspond bien à ce qui est a priori attendu.
+
+###respiration : graphiques "Boxplot" & Nuage de points type "jitter"
+
+Les deux graphiques suivant représentent les données mesurées pour la respiration (en ordonnée) par expérience (en abscisse, chacun des expérience ).
+
+
+```{r, echo=F, cache=T,  fig.width = 7, fig.height = 7, warning=FALSE}
+qplot(nom.experience , respiration, data = df.all, position = position_jitter(w = 0.4, h= 0), alpha = I(1/150), main = "Nuage de points type \"jitter\" de la respiration par expérience", color=I("red"),ylim = c(-25,25))
+```
+
+```{r, echo=F, cache=T, fig.width = 7, fig.height = 7, warning=FALSE}
+qplot(nom.experience , respiration, data = df.all, geom = "boxplot", main = "Boxplot de la respiration par expérience", ylim = c(-20,20))
+```
+
+Comme nous l'avons vu, le constructeur annonce des valeurs entre 0% et75%, or nous voyions que les données vont en tout de -20 à 20. Ces données ne semblent donc pas compatibles. Lors d'une discussion à ce propos avec des représentants du fabriquant des capteurs, ceux-ci nous ont expliqué que les données négatives devaient être inversées. Mais il reste un autre problème : certaines expériences ont des valeurs à la fois positives et négatives (ce que montre la figure 5). Des analyses et tests supplémentaires sont donc nécessaires avant de pouvoir exploiter ces données.
+On peut aussi noter que l'expérience 'LM', les données sont pratiquement constantes pendant toute l'expérience. Ce que confirme le fait que sur `rlength(data.LM$respiration)`, `r length(which(data.LM$respiration==-18.67))` sont constantes. Comme les données sont au millième de %, cela ne peut s'expliquer que par un problème lors de la prise de mesure.
+
+###activité electrodermale : graphiques "Boxplot" & "Jitter"
+
+
+Les deux graphiques suivant représentent les données mesurées pour l'activité electrodermale (en ordonnée) par expérience (en abscisse, chacun des expérience ).
+
+
+```{r, echo=F, cache=T, fig.width = 7, fig.height = 7}
+qplot(nom.experience, activite.electrodermale, data = df.all, position = position_jitter(w = 0.4, h= 0), alpha = I(1/100), main = "Jitter de la transpiration par expérience", color=I("red"))
+```
+
+```{r, echo=F, cache=T, fig.width = 7, fig.height = 7}
+qplot(nom.experience, activite.electrodermale, data = df.all, geom = "boxplot", main = "Boxplot de la transpiration par expérience")
+```
+
+
+Comme nous l'avons déjà dit, la plage de valeur annoncée par le constructeur est 0-30 μS. Or nous voyions ici des valeurs allant de -30 à -50. Selon un représentant du fabriquant, cela pourrait être du à un décallage fortuit du à l'algorithme du logiciel utilisé pour capter les mesures. Selon lui, il faudrait décaller les données de +69. Cela semble assez cohérent avec nos observations. 
+Par ailleurs, pour un certain nombre d'expériences, nous avons à nouveau une variation insuffisante qui laisse penser que certaines mesures sont imparfaites. En particulier 'HL' (une valeur unique : `r  unique(as.factor(data.HL$activite.electrodermale)) `) et 'ST' (nombre de valeurs : `r  length(unique(as.factor(data.HL$activite.electrodermale))) `) mais 'DA' est aussi douteux.
+
+Par, un phénomène intéressant est l'existence d'une "traîne" vers le haut pour la plupart des expériences : il serait intéressant de regarder à quel momment c'est traîne est créée.
+
+###température: graphiques "Boxplot" & "Jitter"
+
+
+Les deux graphiques suivant représentent les données mesurées pour la température (en ordonnée) par expérience (en abscisse, chacun des expérience ).
+
+
+```{r, echo=F, cache=T,  fig.width = 7, fig.height = 7}
+qplot(nom.experience, temperature, data = df.all, position = position_jitter(w = 0.4, h= 0), alpha = I(1/100), main = "Jitter de la température par expé", color=I("red"))
+```
+
+```{r, echo=F, cache=T, fig.width = 7, fig.height = 7}
+qplot(nom.experience, temperature, data = df.all, geom = "boxplot", main = "Boxplot de la température par expé")
+```
+
+Concernant la température, on voit que la dispersion des données est généralement faible. Les spécifications du capteurs annoncent un spectre de mesure de -40°C à 120°C, avec une précision de 0.05°C. Les données sont toutes bien à l'intérieur de cette plage. On remarque en particulier sur le "box plot" que les données sont (à quelques "outliers" près) très rapprochées. Cela correspond ici à ce qui est attendu puisque la mesure au corps ne varie pas beaucoup. Ainsi, une étude récente a donné lieu à une mesure de la température d'une personne selon trois méthodes (buccale, anale et cutannée) et la variation moyenne de la température du corps humain est d'environ 1 degré[^7]. Toujours dans cette étude, pour la température cutanée, la variation maximum est de 2 degrés environ.
+Seule l'expérience 'AB' propose une amplitude importante : `r round(max(data.AB$temperature)-min(data.AB$temperature)) `r qui demandera une enquête plus appronfondie.
+
+L'expérience 'DA' semble avoir une donnée de température extrêmement éloignée des autres.
+`r df.all[df.all$temperature<20,]`
+
+Nous pouvons supposer qu'il s'agit d'une erreur puisque c'est la seule température mesurée en dessous de 20 degré toute expérience confondue et que l'ensemble des valeurs de 'AD' pour la variable température est compris dans l'intervalle :
+`r range(as.list(df.all[ df.all$nom.experience == 'DA'& df.all$temperature >20,"temperature"],na.rm = T))`
+
+Nous allons remplacer cette donnée aberrante par la température mesurée à l'instant précédant  :
+```{r, echo=T, cache=T}
+#obtenir l'index de la ligne de la donnée aberrant
+num.row<- which(df.all$temperature< 20)
+#remplacer cette valeur par la valeur de la ligne au-dessus
+df.all[num.row,"temperature"] <- df.all[num.row-1,"temperature"]
+
+#idem pour data.DA
+num.row<- which(data.DA$temperature <20)
+data.DA[num.row,"temperature"] <-data.DA[num.row-1,"temperature"]
+```
+
+Verification, nombre de données inférieures à 20 :
+```{r, echo=F, cache=T}
+ifelse(length(which( df.all$nom.experience == 'DA' & df.all$temperature < 20))==0,"aucune","existantes")
+```
+
+
+###fréquence cardiaque : graphiques "Boxplot" & "Jitter"
+
+
+Pour finir, les deux graphiques suivant représentent les données mesurées pour la fréquence cardiaque (en ordonnée) par expérience (en abscisse, chacun des expérience ).
+
+```{r, echo=F, cache=T,  fig.width = 7, fig.height = 7}
+qplot(nom.experience, frequence.cardiaque, data = df.all, position = position_jitter(w = 0.4, h = 0), alpha = I(1/100), main = "Jitter de la freq. card. par expé", color=I("red"))
+
+```
+
+```{r, echo=F, cache=T, fig.width = 7, fig.height = 7}
+qplot(nom.experience, frequence.cardiaque, data = df.all, geom = "boxplot", main = "Boxplot de la freq. card. par expé")
+
+
+```
+
+
+Concernant la mesure cardiaque, la plage de mesure annoncée est de 10 à 220 BPM avec une résolution de 1 BPM. Les données sont compatibles avec ces spécifications. Nous remarquons une plus grande variation de la fréquence cardiaque, ce qui là encore est en accord avec les résultats trouvés par ailleurs. D'une personne à l'autre, d'un moment à l'autre, les variations des battements par minute peuvent être importantes (un sportif peut ainsi réduire son rythme cardiaque par 2).
+
+
+
+\newpage
+
+
+
+##Représentations graphiques des données par expérience et par quart-temps.
+
+
+Nous présentons brièvemment un certain nombre de représentations graphiques complémentaires par expérience et par valeur. Nous avons là encore utilisé les graphiques de type "Jitter" avec de la transparence mais cette fois-ci en découpant les données par quart temps grâce à une donnée catégorielle afin d'avoir une idée de l'évolution dans le temps.
+L'idée est de voir si cette évolution montre des phases où les données sont constantes et - afin de préparer la suite - de voir si cette évolution montre des régularités ou des tendances intéressantes.
+
+###respiration : graphiques "jitter"
+
+```{r, echo = F, cache=T}
+list.dfname <- paste("data",list.exp, sep = ".")
+list.jitters <- sapply(
+  names(data.AB),
+  function(colname){
+    lapply(
+      list.dfname,
+      function(dfname){
+        #print(paste(dfname,colname, sep= ";"))
+        qplot(
+         quart.temps,data = get(dfname), get(colname),position = position_jitter(w = 0.4, h= 0), alpha = I(1/25), main = dfname,  color = I("Red"), ylab = colname
+        )
+        
+      }
+    )
+  }
+
+  )
+
+
+```
+
+```{r, echo=F, cache=T, fig.width = 3, fig.height = 3}
+list.jitters[[1,2]]
+list.jitters[[2,2]]
+list.jitters[[3,2]]
+list.jitters[[4,2]]
+list.jitters[[5,2]]
+list.jitters[[6,2]]
+list.jitters[[7,2]]
+list.jitters[[8,2]]
+list.jitters[[9,2]]
+list.jitters[[10,2]]
+list.jitters[[11,2]]
+list.jitters[[12,2]]
+```
+
+
+####Analyse.
+
+\break
+
+Pour la respiration, nous voyions une confirmation d'un certain nombre d'anomalies que nous avons detecté.
+Ainsi, concernant LM, nous pouvons observer que les valeurs sont constantes pendant la majorité de l'expérience. FS1 montre des variations assez étonnantes. Puisqu'il y a un grand nombre de valeur nulle : `r length(df.all[ df.all$nom.experience == 'FS1' & df.all$respiration==0 ,"respiration"]) `
+, soit 
+`r nrow(df.all)/length(df.all[ df.all$nom.experience == 'FS1' & df.all$respiration==0,"respiration"])*100 `
+% du totale.
+`r df.all[ df.all$nom.experience == 'FS1' & df.all$respiration>10 ,"respiration"] `
+
+
+Comme pour 'DA' un peu plus haut, nous remarquons des données aberrantes :
+*Avec une unique valeur positive :
+`r df.all[ df.all$nom.experience == 'FS1' & df.all$respiration>0 ,] `
+*Avec deux valeurs largement hors du spectre :
+```{r,, echo=T, cache=T}
+##Lignes des données de respi de FS1 < 18
+which( df.all$nom.experience == 'FS1' & df.all$respiration< -18)
+```
+
+Là aussi, nous allons les modifier par la valeur qui les précède :
+```{r, echo=T, cache=T}
+#obtenir l'index de la ligne de la donnée aberrant
+num.row<- which(df.all$nom.experience == 'FS1' & df.all$respiration > 0 )
+#remplacer cette valeur par la valeur de la ligne au-dessus
+df.all[num.row,"respiration"] <- df.all[num.row-1,"respiration"]
+
+#obtenir l'index de la ligne de la donnée aberrant
+num.row<- which(df.all$nom.experience == 'FS1' & df.all$respiration < -18)
+#remplacer cette valeur par la valeur de la ligne au-dessus
+df.all[num.row,"respiration"] <- df.all[num.row-1,"respiration"]
+```
+
+Vérification, nombre de données > 0 ou < -18 après modification :
+
+```{r, echo=F, cache=T, fig.width = 3, fig.height = 3}
+ ifelse(length(which(df.all$nom.experience == 'FS1' & ( df.all$respiration < -18 | df.all$respiration > 0)))==0,"aucune","existantes")
+```
+
+####Conclusion concernant la respiration :
+
+\break
+
+En conclusion, nous pouvons dire que les expériences LM et FS1 sont particulièrement peu crédibles en ce qui concerne les valeurs fournies. L'autre problème concerne plus la différence dans les spectres des valeurs d'une expérience à l'autre.
+
+Intervales par expériences pour la respiration :
+
+```{r, echo=F, cache=T}
+#création d'un tableau pour les min et max
+intervale <- as.data.frame(t(sapply(list.exp,function(exp){range(df.all[df.all$nom.experience==exp, "respiration"])})))
+colnames(intervale) <- c("min", "max")
+
+kable(intervale)
+
+```
+
+
+###transpiration (activité electroderm.) : graphiques "jitter"
+
+
+```{r, echo=F, cache=T, fig.width = 3, fig.height = 3}
+list.jitters[[1,3]]
+list.jitters[[2,3]]
+list.jitters[[3,3]]
+list.jitters[[4,3]]
+list.jitters[[5,3]]
+list.jitters[[6,3]]
+list.jitters[[7,3]]
+list.jitters[[8,3]]
+list.jitters[[9,3]]
+list.jitters[[10,3]]
+list.jitters[[11,3]]
+list.jitters[[12,3]]
+```
+
+####Analyse.
+\\
+
+Concernant la transpiration, il semble confirmer les valeurs mesurées pour 'ST' et 'HL' sont pratiquement toutes nulles.
+
+
+####Conclusion concernant la transpiration :
+\\
+
+Ici aussi, il y a deux expériences qui semblent n'avoir pas "réussi" (ici ST et HL). Concernant le problème les intervales dans lesquels varient valeurs des différentes expériences, les choses semblent plus cohérentes (voir tableau ci-dessous). 
+
+Intervales par expérience pour la transpiration :
+
+```{r, echo=F, cache=T}
+
+#création d'un tableau pour les min et max
+intervale <- as.data.frame(t(sapply(list.exp,function(exp){range(df.all[df.all$nom.experience==exp, "activite.electrodermale"])})))
+colnames(intervale) <- c("min", "max")
+
+kable(intervale)
+```
+
+
+###Température : graphiques "jitter"
+
+```{r, echo=F, cache=T, fig.width = 3, fig.height = 3}
+list.jitters[[1,4]]
+list.jitters[[2,4]]
+list.jitters[[3,4]]
+list.jitters[[4,4]]
+list.jitters[[5,4]]
+list.jitters[[6,4]]
+list.jitters[[7,4]]
+list.jitters[[8,4]]
+list.jitters[[9,4]]
+list.jitters[[10,4]]
+list.jitters[[11,4]]
+list.jitters[[12,4]]
+```
+
+####Analyse
+\\
+En dehors des problèmes corrigés, il ne semble pas y avoir de données aberrantes ou opposées aux spécifications du fabriquant du matériel de mesure. Les seules questions concernent la variation pour certaines expériences ainsi que nous l'avons déjà souligé ('AB' qui varie de `r round(max(df.all[df.all$nom.experience=='AB', "temperature"]) - min(df.all[df.all$nom.experience=='AB', "temperature"]))` degrés et dans une moindre mesure 'CW' qui varie de `r max(df.all[df.all$nom.experience=='CW', "temperature"]) - min(df.all[df.all$nom.experience=='CW', "temperature"])`).
+
+
+####Conclusion concernant la température :
+\\
+
+En conclusion, les données peuvent être utlisées pour des fouilles de données.
+Pour information, les intervales par expériences pour la température :
+
+```{r, echo=F, cache=T}
+#création d'un tableau pour les min et max
+intervale <- as.data.frame(t(sapply(list.exp,function(exp){range(df.all[df.all$nom.experience==exp, "temperature"])})))
+colnames(intervale) <- c("min", "max")
+
+kable(intervale)
+
+```
+
+###fréquence cardiaque : graphique "jitter"
+
+```{r, echo=F, cache=T, fig.width = 3, fig.height = 3}
+list.jitters[[1,5]]
+list.jitters[[2,5]]
+list.jitters[[3,5]]
+list.jitters[[4,5]]
+list.jitters[[5,5]]
+list.jitters[[6,5]]
+list.jitters[[7,5]]
+list.jitters[[8,5]]
+list.jitters[[9,5]]
+list.jitters[[10,5]]
+list.jitters[[11,5]]
+list.jitters[[12,5]]
+```
+
+####Conclusion concernant la fréquence cardiaque :
+
+\\
+
+Les "rayures" sur les graphiques s'expliquent par le fait que les fréquences cardiaques soient exprimés en nombre entier (positif).
+
+Intervales par expériences pour la température :
+
+```{r, echo=F, cache=T}
+#création d'un tableau pour les min et max
+intervale <- as.data.frame(t(sapply(list.exp,function(exp){range(df.all[df.all$nom.experience==exp, "frequence.cardiaque"])})))
+intervale <- cbind(intervale,intervale[,2] - intervale[,1] )
+colnames(intervale) <- c("min", "max","diff max-min")
+
+kable(intervale)
+
+```
+
+
+\newpage
+
+###Nuage de points par expérience et par pair de variable
+
+
+Pour finir, nous ajoutons en annexe les graphiques des "matrices de nuages de points" ou "scatter plots" permettent de représenter pour chaque expérience des couples de variables dans un plan.
+
+
+#Conclusion :
+
+Il semble qu'avant de pouvoir traiter les données, un certain nombre de tests doivent être réalisées. Par ailleurs, des questions doivent être posées au fabriquant des capteurs concernant la possiblite de devoir ajouter un "offset" aux mesures brutes. Il existe plusieurs incertitudes concernant la qualité des données mesurées ; malgré tout, nous pouvons procéder à de premières analyses plus poussées en reprenant la méthodologie du travail préliminaire (voir le document en annexe).
+
+Nous allons maintenant procéder à un nettoyage des données en nous basant sur les différentes remarques faites dans la première partie et en utilisant le fait que les algorithmes que nous utilisons peuvent aussi permettre d'"isoler" les données "abhérantes" (comme les cartes topologiques de Kohonen). Nous espérons ainsi pouvoir tester des premiers resultats.
+
+Par ailleurs, nous sommes en même temps en contact avec des représentants de la société fabriquant les capteurs. et nous avons procéder avec Viviane Gal à un certain nombre de tests avec le matériel pour mieux comprendre les données reçues, les possibles anomalies et trancher concernant un certain nombre de questions (influence de la température ambiante, vérifer s'il y a peu avoir des problèmes de déconnexion...) qui se sont posées à nous dans l'exploration des données. L'analyse de ces tests est en cours.
+
+
+
+```{r, echo=T,cache=T}
+
+
+#enregistrement des données
+rda.save <- paste(data.path ,"data-frame-all-expe.Rda",sep = "/")
+save(df.all,file=rda.save)
+
+```
+
+
+\newpage
+
+##Annexe :
+
+
+###Nuages de points par pair de variables (pour les données de type réels)
+
+A l'intérieur d'une matrice, on trouve donc plusieurs nuages de points avec en abscisse une des quatres mesures (respiration, activité électrodermale, température, fréquence cardiaque) et en ordonnée une autres de ces quatres mesures, différente de celle choisie pour l'abscisse.
+Ainsi, pour l'expérience 'AB' (figure 13), le nuage de points situé en dessous du carré intitulé "respiration" dans la matrice scatter plot représente dans le plan l'ensemble des couples "respiration" et "activité electrodermale" pour chaque instant écoulé durant l'expérience.
+
+Par ailleurs, en utilisant un dégradé de couleurs du jaune vers le rouge, nous avons représenté l'évolution dans le temps de ces couples : plus on approche de la fin de l'expérience, plus la couleur du point devient rouge.
+
+####Pour AB :
+
+Voir graphique ci-dessous
+
+```{r, echo=F, cache=T, fig.height=8, fig.width=8}
+pal <- colorRampPalette(c("yellow","red"))
+time.col <- pal(length(data.AB$temperature))
+pairs(data.AB[,2:5],col =  time.col)
+```
+
+####Pour ST :
+
+Voir graphique ci-dessous
+
+```{r, echo=F, cache=T, fig.height=8, fig.width=8}
+pal <- colorRampPalette(c("yellow","red"))
+time.col <- pal(length(data.ST$temperature))
+pairs(data.ST[,2:5],col =  time.col)
+```
+
+####Pour LM :
+
+Voir graphique ci-dessous
+
+```{r, echo=F, cache=T, fig.height=8, fig.width=8}
+pal <- colorRampPalette(c("yellow","red"))
+time.col <- pal(length(data.LM$temperature))
+pairs(data.LM[,2:5],col =  time.col)
+```
+
+####Pour FS1 :
+
+Voir graphique ci-dessous
+
+```{r, echo=F, cache=T, fig.height=8, fig.width=8}
+pal <- colorRampPalette(c("yellow","red"))
+time.col <- pal(length(data.FS1$temperature))
+pairs(data.FS1[,2:5],col =  time.col)
+```
+
+#####Pour PCo :
+
+Voir graphique ci-dessous
+
+```{r, echo=F, cache=T, fig.height=8, fig.width=8}
+pal <- colorRampPalette(c("yellow","red"))
+time.col <- pal(length(data.PCo$temperature))
+pairs(data.PCo[,2:5],col =  time.col)
+```
+
+#####Pour PCo2 :
+
+Voir graphique ci-dessous
+
+```{r, echo=F, cache=T, fig.height=8, fig.width=8}
+pal <- colorRampPalette(c("yellow","red"))
+time.col <- pal(length(data.PCo2$temperature))
+pairs(data.PCo2[,2:5],col =  time.col)
+```
+
+#####Pour PCo3 :
+
+Voir graphique ci-dessous
+
+```{r, echo=F, cache=T, fig.height=8, fig.width=8}
+pal <- colorRampPalette(c("yellow","red"))
+time.col <- pal(length(data.PCo3$temperature))
+pairs(data.PCo3[,2:5],col =  time.col)
+
+```
+
+
+
+[^1]:Voir http://teaergo.com/site/sites/default/files/docs/TSens_CFM-cardio_FR_V1.8.pdf
+[^2]:Voir http://teaergo.com/drupal/sites/default/files/docs/TSens_FSR_FR_V1.8.pdf
+[^3]:Voir http://teaergo.com/drupal/sites/default/files/docs/TSens_Respi_FR_V1.8.pdf
+[^4]:Voir http://www.r-project.org/Licenses pour plus de détails.
+[^5]:Voir notamment http://cran.r-project.org/web/packages/ggplot2/ggplot2.pdf
+[^6]:Voir http://www.springer.com/us/book/9780387245447
+[^7]: Voir graphique page 282, http://www.altmedrev.com/publications/11/4/278.pdf
