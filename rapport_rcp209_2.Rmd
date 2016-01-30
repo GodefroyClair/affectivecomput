@@ -31,6 +31,7 @@ require(kohonen)
 require(ggdendro)
 require(grid)
 require(zoo)
+require(rggobi)
 ```
 
 ```{r, echo = F, cache=T}

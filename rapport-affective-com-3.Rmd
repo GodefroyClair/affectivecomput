@@ -1,13 +1,15 @@
 ---
 title: "Mesures physiologiques de joueurs de jeu vidéo (2)"
-subtitle: "Analyse par expériences"
 author: "Godefroy Clair"
 date: "15 janvier 2016"
 output:
-  html_document:    
+  pdf_document:
+    toc: yes
+  html_document:
     number_sections: yes
     toc: yes
   word_document: default
+subtitle: Analyse par expériences
 ---
 
 
@@ -26,7 +28,7 @@ require(zoo)
 ```
 
 
-```{r, echo = F, cache=T}
+```{r, echo = F, cache=T,fig.height=18, fig.width=15, fig.cap="déplacement des données entre les neurones"}
 
 mac.gd.path <- "/Users/godot/githubRepos/"
 hp.gd.path <- "C:/Users/Godefroy/githubRepos/"
@@ -37,105 +39,380 @@ if(Sys.info()['nodename']=="THIM")gd.path <- hp.gd.path else
 data.path <- paste(gd.path,"affectiveComputing/data",sep = "/")
 ```
 
-```{r, echo = F, cache=T}
+```{r, echo = F, cache=T,fig.height=18, fig.width=15, fig.cap="déplacement des données entre les neurones"}
 
 rda.save <- paste(data.path ,"data-frame-all-expe.Rda",sep = "/")
 load(rda.save)
-#enregistrement des données
+#récupérer le résultat du cluster
 hcluster.save <- paste(data.path ,"hClustering.Rda",sep = "/")
 load(hcluster.save)
-#enregistrement des données
+#récupérer les résultats de l'algo sur les neurones
 som1.save <- paste(data.path ,"som1.Rda",sep = "/")
 load(som1.save)
 
+#prep :
+#1) select the experiences
+df.selec <- df.all[!(df.all$nom.experience %in% c("FS1","LM","HL","ST")),]
+list.expe.selec <- c("AB", "CLP", "CW", "DA", "PCo", "PCo2", "PCo3","DE")
+
+#construction d'une variable numérique représentant le temps écoulé
+df.selec$tps.ecoule <- as.numeric(df.selec$date)
+
+#transltation des valeurs pour chaque expérience de manière à ce que le 1er instant soit 0.
+trash <-sapply(list.expe.selec,function(nom.exp){ df.selec[df.selec$nom.experience==nom.exp,]$tps.ecoule <<- round(df.selec[df.selec$nom.experience==nom.exp,]$tps.ecoule -  min(df.selec[df.selec$nom.experience== nom.exp,]$tps.ecoule),2 )})
+
+rm(trash)
+
+#create new column for time past in proportion of the whole duration
+df.selec$tps.ecoule.norm <- df.selec$tps.ecoule
+#divsion des valeurs pour chaque expérience de manière à ce qu'elle soit compris entre 0 et 1.
+trash <-sapply(list.expe.selec,function(nom.exp){ df.selec[df.selec$nom.experience==nom.exp,]$tps.ecoule.norm <<- df.selec[df.selec$nom.experience==nom.exp,]$tps.ecoule /  max(df.selec[df.selec$nom.experience== nom.exp,]$tps.ecoule) })
+
+rm(trash)
+
+#recupérer l'identité du neurone référent
+df.selec$referent <- som1$unit.classif
 ```
 
 \newpage
 
 #Introduction
 
-Bla bla bla
+A FAIRE
 
-Listes des expériences 
-```{r, echo=F, cache=T}
-df.selec <- df.all[!(df.all$nom.experience %in% c("FS1","LM","HL","ST")),]
-list.expe.selec <- c("AB", "CLP", "CW", "DA", "PCo", "PCo2", "PCo3","DE")
-df.selec$tps.ecoule <- as.numeric(df.selec$date)
-df.selec$tps.ecoule.norm <- df.selec$tps.ecoule
-df.selec$nom.neurone <- som1$unit.classif
+Listes des expériences :
+```{r, echo=F, cache=T,fig.height=18, fig.width=15, fig.cap="déplacement des données entre les neurones"}
+list.expe.selec
+```
+
+```{r, echo=FALSE,cache=T}
+
+
+#data frame du nombre de données par expe captées par chaque neurone **non vide**
+expe.par.neurone <- as.data.frame(with(df.selec, tapply(row.names(df.selec),list(neurone=referent,experience=nom.experience), length)))
+
+
+#ajoutons les neurones manquants
+#simplifier ??
+list.neuro.vid <- which(! seq(1:900) %in% as.numeric(rownames(expe.par.neurone)))
+nb.neuro.vid <- length(list.neuro.vid)
+#df des neurones manquants
+df.neuro.vid <- as.data.frame(matrix(nrow=nb.neuro.vid,ncol = ncol(expe.par.neurone)))
+#prépa du rbind avec autre fdf
+rownames(df.neuro.vid) <- list.neuro.vid
+colnames(df.neuro.vid) <- colnames(expe.par.neurone)
+#rbind & mis en ordre
+expe.par.neurone <- rbind(expe.par.neurone,df.neuro.vid)
+expe.par.neurone <- expe.par.neurone[order(as.numeric(row.names(expe.par.neurone))),]
+
+
+#supprimons les facteurs inutiles
+expe.par.neurone <- expe.par.neurone[,list.expe.selec]
+expe.par.neurone[is.na(expe.par.neurone)]<-0
+
+#nom de l'experience la plus représentée par neurones
+expe.major.par.neurone <- as.factor(list.expe.selec[max.col(expe.par.neurone)])
+#put NA in line of neurone empty
+expe.major.par.neurone[rowSums(expe.par.neurone)==0]<-NA
+
 ```
 
 
-```{r, echo=F, cache=T}
-#Utilis par la suite...
+```{r, echo=F, cache=T,fig.height=18, fig.width=15, fig.cap="déplacement des données entre les neurones"}
 
-# Multiple plot function
-#
-# ggplot objects can be passed in ..., or to plotlist (as a list of ggplot objects)
-# - cols:   Number of columns in layout
-# - layout: A matrix specifying the layout. If present, 'cols' is ignored.
-#
-# If the layout is something like matrix(c(1,2,3,3), nrow=2,   byrow=TRUE),
-# then plot 1 will go in the upper left, 2 will go in the upper right, and
-# 3 will go all the way across the bottom.
-#
-multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
-  library(grid)
+  multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+    library(grid)
   
-  # Make a list from the ... arguments and plotlist
-  plots <- c(list(...), plotlist)
+    # Make a list from the ... arguments and plotlist
+    plots <- c(list(...), plotlist)
 
-  numPlots = length(plots)
+    numPlots = length(plots)
 
-  # If layout is NULL, then use 'cols' to determine layout
-  if (is.null(layout)) {
-    # Make the panel
-    # ncol: Number of columns of plots
-    # nrow: Number of rows needed, calculated from # of cols
-    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+    # If layout is NULL, then use 'cols' to determine layout
+    if (is.null(layout)) {
+      # Make the panel
+      # ncol: Number of columns of plots
+      # nrow: Number of rows needed, calculated from # of cols
+      layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
                     ncol = cols, nrow = ceiling(numPlots/cols))
-  }
+   }
  
- if (numPlots==1) {
-    print(plots[[1]])
-  } else {
-    # Set up the page
-    grid.newpage()
-    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+   if (numPlots==1) {
+      print(plots[[1]])
+   } else {
+      # Set up the page
+      grid.newpage()
+      pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
        
-    # Make each plot, in the correct location
-    for (i in 1:(numPlots)) {
-      # Get the i,j matrix positions of the regions that contain this subplot
-      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+      # Make each plot, in the correct location
+      for (i in 1:(numPlots)) {
+        # Get the i,j matrix positions of the regions that contain this subplot
+        matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
      
-      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+        print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
                                       layout.pos.col = matchidx$col))
       
+      }
     }
   }
-}
 
 ```
 
-#Experience PCo
 
-\newgeometry{left=0.5cm, right=0.5cm,bottom=3cm,top=0cm}
 
-```{r, echo=F, cache=T, fig.height=18, fig.width=18, fig.cap="déplacement des données entre les neurones par expérience"}
+```{r, echo=F, cache=T}
 
 list.gg <- lapply(list.expe.selec, function(nom.expe) { 
-  g<- ggplot(data = df.selec[df.selec$nom.experience==nom.expe,], aes (tps.ecoule.norm,nom.neurone)) + 
-    geom_line(aes(colour = tps.ecoule.norm)) + 
-    scale_color_continuous(name="temps écoulé)", low = "yellow",high = "red") + 
+  g<- ggplot(data = df.selec[df.selec$nom.experience==nom.expe,], aes (tps.ecoule.norm,as.factor(referent))) + 
+    geom_line(aes(colour = tps.ecoule.norm),size=3) + 
+    scale_color_continuous(name="temps écoulé", low = "green",high = "red") + 
     xlab("proportion du temps écoulé") + 
-    ylab("numéro du neurone") + ggtitle(paste("déplacement des données de",nom.expe,"entre les neurones",sep = " "))+ 
-    scale_y_continuous(breaks=seq(0,900,by = 10)) +
+    ylab("numéro du neurone") + ggtitle(paste("chronographe des référents de ",nom.expe,sep = " "))+ 
     theme(axis.text.y=element_text(colour = 'black', size = 7)) 
   })
 
-multiplot(list.gg[[1]],list.gg[[2]],list.gg[[3]],list.gg[[4]],list.gg[[5]],list.gg[[6]],list.gg[[7]],list.gg[[8]],cols = 2)
+```
 
-#do.call("multiplot", as.list(list.gg,cols=2)) 
+
+
+```{r, echo=FALSE,cache=T}
+dendro.ward <- function(nom.expe){
+  set.seed(7)
+  #besoin d'un nb divisible par trois
+  neur.region.expe <- som1$codes[which(expe.major.par.neurone==nom.expe),]
+  row.names(neur.region.expe) <- as.factor(which(expe.major.par.neurone==nom.expe))
+  dist.phy <- dist(neur.region.expe)
+  hClustering <- hclust(dist.phy,method = "ward.D")
+}
+
+#source: Didzis Elferts & Sandy Muspratt 
+#voir: http://stackoverflow.com/questions/21474388/colorize-clusters-in-dendogram-with-ggplot2
+#methode : ward.D ou AVE
+plot.dendro <- function(nom.expe,methode,cut=9){ # cut = Number of clusters
+  neur.region.expe <- som1$codes[which(expe.major.par.neurone==nom.expe),]
+  row.names(neur.region.expe) <- as.factor(which(expe.major.par.neurone==nom.expe))
+  hClustering <- hclust(dist(neur.region.expe),methode)  # hierarchal clustering
+  dendr <- dendro_data(hClustering, type = "rectangle") # convert for ggplot
+  clust <- cutree(hClustering, k = cut)               # find 'cut' clusters
+  clust.df <- data.frame(label = names(clust), cluster = clust)
+
+  # Split dendrogram into upper grey section and lower coloured section
+  #1) arranger l'ordonnée des segments du plus haut au plus bas
+  height <- unique(dendr$segments$y)[order(unique(dendr$segments$y),  decreasing = TRUE)]
+  #le nombre de segments hoizontaux (= nb d'ordonnées uniques) est égal au    nb de groupes +1 !
+  #(rmq : penser en récursif : 1 segment = 2 grps,  segements = 3grps...)
+  cut.height <- mean(c(height[cut], height[cut-1]))
+  #séparation des segments horizontaux
+  dendr$segments$line <- ifelse(dendr$segments$y == dendr$segments$yend &
+                                dendr$segments$y > cut.height, 1, 2)
+  #séparation des segments verticaux
+  dendr$segments$line <- ifelse(dendr$segments$yend  > cut.height, 1,    dendr$segments$line)
+
+  # Number the clusters
+  #marque les segments racines de chaque clusters par "-1"
+dendr$segments$cluster <- c(-1, diff(dendr$segments$line))
+change <- which(dendr$segments$cluster == 1)
+for (i in 1:cut) dendr$segments$cluster[change[i]] = i + 1
+dendr$segments$cluster <-  ifelse(dendr$segments$line == 1, 1, 
+                                  ifelse(dendr$segments$cluster == 0, NA, dendr$segments$cluster))
+dendr$segments$cluster <- na.locf(dendr$segments$cluster) 
+
+# Consistent numbering between segment$cluster and label$cluster
+clust.df$label <- factor(clust.df$label, levels = levels(dendr$labels$label))
+clust.df <- arrange(clust.df, label)
+clust.df$cluster <- factor((clust.df$cluster), levels = unique(clust.df$cluster), labels = (1:cut) + 1)
+dendr[["labels"]] <- merge(dendr[["labels"]], clust.df, by = "label")
+
+# Positions for cluster labels
+n.rle <- rle(dendr$segments$cluster)
+N <- cumsum(n.rle$lengths)
+N <- N[seq(1, length(N), 2)] + 1
+N.df <- dendr$segments[N, ]
+N.df$cluster <- N.df$cluster - 1
+
+  # plot the dendrogram; note use of color=cluster in geom_text(...)
+ggplot() + 
+  geom_segment(data=segment(dendr), aes(x=x, y=y, xend=xend, yend=yend, size=factor(line),colour=factor(cluster) ), lineend = "square", show_guide = FALSE) + 
+    scale_colour_manual(values = c("grey60", rainbow(cut))) +
+    scale_size_manual(values = c(.1, 1)) +
+   geom_text(data = N.df, aes(x = x, y = y, label = factor(cluster),  colour = factor(cluster + 1)), 
+      hjust = -1, show_guide = FALSE) +
+   geom_text(data = label(dendr), aes(x, y, label = label, 
+                                      colour = factor(cluster)), 
+             hjust = 1.3, size = 3, show_guide = FALSE) +
+  labs(x = NULL, y = NULL) +
+  coord_flip() +  
+  ggtitle(paste("dendrogramme de",nom.expe,";", "méthode :",methode ,sep = " ")) +
+  theme(axis.line.y=element_blank(),
+        axis.ticks.y=element_blank(),
+        axis.text.y=element_text(),
+        axis.title.y=element_blank(),
+        panel.background=element_rect(fill="white"),
+        panel.grid=element_blank())
+}
+
+######
+
+dendro.expe <- function(nom.expe,methode,cut=9){
+  # cut = Number of clusters
+  neur.region.expe <- som1$codes[which(expe.major.par.neurone==nom.expe),]
+  row.names(neur.region.expe) <- as.factor(which(expe.major.par.neurone==nom.expe))
+  hClustering <- hclust(dist(neur.region.expe),methode)  # hierarchal clustering
+  dendr <- dendro_data(hClustering, type = "rectangle") # convert for ggplot
+  clust <- cutree(hClustering, k = cut)               # find 'cut' clusters
+  clust.df <- data.frame(label = names(clust), cluster = clust)
+  clust.df
+}
+
+chrono.class.expe <- function(df,nom.expe, methode){
+  clust.df<- dendro.expe(nom.expe,methode)
+  #ajouter une colonne pour le cluster/groupe
+  df.expe <- df[df$nom.experience==nom.expe,]
+  df.expe <- merge(x = df.expe, y= clust.df, by.x = "referent", by.y = "label")
+  
+  df.expe$cluster <- as.numeric(df.expe$cluster) 
+  df.expe$methode <- methode
+  df.expe
+}
+
+
+plot.chrono.class.expe <- function(nom.expe,df){
+  ggplot(data = df, aes (date,cluster)) + 
+    geom_point(aes(colour = tps.ecoule.norm), size=3) + 
+    scale_color_continuous(name="temps écoulé)", low = "yellow",high = "red") + 
+    xlab("proportion du temps écoulé") + 
+    ylab("numéro du cluster") + ggtitle(paste("déplacement des données de",nom.expe,"entre les clusters (méthode de",df$methode[1],")",sep = " "))+
+    scale_y_discrete(breaks=seq(1,7))
+}
+
+plot.chrono.expe.2 <- function(nom.expe,df){
+  ggplot(data = df, aes (date,reorder(as.factor(referent),cluster))) + 
+    geom_point(aes(colour = as.factor(cluster)), size=1) + 
+    xlab("proportion du temps écoulé") + 
+    ylab("référent") + 
+    ggtitle(paste("déplacement des données de",nom.expe,"entre les référents (regroupés par classe)",sep = " ")) +
+   theme(legend.title = element_text( size=4),axis.text.x = element_text(angle=90, vjust=1, size = 5))+
+  scale_color_discrete(name=paste("Classes des référents (méthode de ",df$methode[1],")",sep="")) +
+  scale_x_datetime(date_labels = '%M:%S' , date_breaks= "3 sec")
+}
+
+df.expe <- chrono.class.expe(df.selec,list.expe.selec[5],"ward.D")
+plot.chrono.expe.2(list.expe.selec[5],df.expe)
+
+df.expe <- chrono.class.expe(df.selec,list.expe.selec[6],"ward.D")
+plot.chrono.expe.2(list.expe.selec[6],df.expe)
+
+df.expe <- chrono.class.expe(df.selec,list.expe.selec[7],"ward.D")
+plot.chrono.expe.2(list.expe.selec[7],df.expe)
 
 ```
-\restoregeometry
+
+
+#Experience `r list.expe.selec[1]`
+```{r, echo=F, cache=F,fig.height=18, fig.width=15, fig.cap="déplacement des données entre les neurones et classification",warning=F}
+
+list.gg[[1]]
+plot.dendro(list.expe.selec[1],"ward.D")
+plot.dendro(list.expe.selec[1],"ave")
+df.expe <- chrono.class.expe(df.selec,list.expe.selec[1],"ward.D")
+plot.chrono.class.expe(list.expe.selec[1],df.expe)
+plot.chrono.expe.2(list.expe.selec[1],df.expe)
+df.expe <- chrono.class.expe(df.selec,list.expe.selec[1],"ave")
+plot.chrono.class.expe(list.expe.selec[1],df.expe)
+plot.chrono.expe.2(list.expe.selec[1],df.expe)
+```
+
+#Experience `r list.expe.selec[2]`
+```{r, echo=F, cache=F,fig.height=18, fig.width=15, fig.cap="déplacement des données entre les neurones",warning=F}
+
+list.gg[[2]]
+plot.dendro(list.expe.selec[2],"ward.D")
+plot.dendro(list.expe.selec[2],"ave")
+df.expe <- chrono.class.expe(df.selec,list.expe.selec[2],"ward.D")
+plot.chrono.class.expe(list.expe.selec[2],df.expe)
+plot.chrono.expe.2(list.expe.selec[2],df.expe)
+df.expe <- chrono.class.expe(df.selec,list.expe.selec[2],"ave")
+plot.chrono.class.expe(list.expe.selec[2],df.expe)
+plot.chrono.expe.2(list.expe.selec[2],df.expe)
+```
+
+
+#Experience `r list.expe.selec[3]`
+```{r,echo=F, cache=F,fig.height=18, fig.width=15, fig.cap="déplacement des données entre les neurones",warning=F}
+list.gg[[3]]
+plot.dendro(list.expe.selec[3],"ward.D")
+plot.dendro(list.expe.selec[3],"ave")
+df.expe <- chrono.class.expe(df.selec,list.expe.selec[3],"ward.D")
+plot.chrono.class.expe(list.expe.selec[3],df.expe)
+plot.chrono.expe.2(list.expe.selec[3],df.expe)
+df.expe <- chrono.class.expe(df.selec,list.expe.selec[3],"ave")
+plot.chrono.class.expe(list.expe.selec[3],df.expe)
+plot.chrono.expe.2(list.expe.selec[3],df.expe)
+```
+
+#Experience `r list.expe.selec[4]`
+```{r, echo=F, cache=F,fig.height=18, fig.width=15, fig.cap="déplacement des données entre les neurones",warning=F}
+list.gg[[4]]
+plot.dendro(list.expe.selec[4],"ward.D")
+plot.dendro(list.expe.selec[4],"ave")
+df.expe <- chrono.class.expe(df.selec,list.expe.selec[4],"ward.D")
+plot.chrono.class.expe(list.expe.selec[4],df.expe)
+plot.chrono.expe.2(list.expe.selec[4],df.expe)
+df.expe <- chrono.class.expe(df.selec,list.expe.selec[4],"ave")
+plot.chrono.class.expe(list.expe.selec[4],df.expe)
+plot.chrono.expe.2(list.expe.selec[4],df.expe)
+```
+
+#Experience `r list.expe.selec[5]`
+```{r, echo=F, cache=F,fig.height=18, fig.width=15, fig.cap="déplacement des données entre les neurones",warning=F}
+list.gg[[5]]
+plot.dendro(list.expe.selec[5],"ward.D")
+plot.dendro(list.expe.selec[5],"ave")
+df.expe <- chrono.class.expe(df.selec,list.expe.selec[5],"ward.D")
+plot.chrono.class.expe(list.expe.selec[5],df.expe)
+plot.chrono.expe.2(list.expe.selec[5],df.expe)
+df.expe <- chrono.class.expe(df.selec,list.expe.selec[5],"ave")
+plot.chrono.class.expe(list.expe.selec[5],df.expe)
+plot.chrono.expe.2(list.expe.selec[5],df.expe)
+```
+
+#Experience `r list.expe.selec[6]`
+```{r, echo=F, cache=F,fig.height=18, fig.width=15, fig.cap="déplacement des données entre les neurones",warning=F}
+list.gg[[6]]
+plot.dendro(list.expe.selec[6],"ward.D")
+df.expe <- chrono.class.expe(df.selec,list.expe.selec[6],"ward.D")
+plot.chrono.class.expe(list.expe.selec[6],df.expe)
+plot.chrono.expe.2(list.expe.selec[6],df.expe)
+df.expe <- chrono.class.expe(df.selec,list.expe.selec[6],"ave")
+plot.chrono.class.expe(list.expe.selec[6],df.expe)
+plot.chrono.expe.2(list.expe.selec[6],df.expe)
+```
+
+#Experience `r list.expe.selec[7]`
+```{r, echo=F, cache=F,fig.height=18, fig.width=15, fig.cap="déplacement des données entre les neurones",warning=F}
+
+list.gg[[7]]
+plot.dendro(list.expe.selec[7],"ward.D")
+plot.dendro(list.expe.selec[7],"ave")
+df.expe <- chrono.class.expe(df.selec,list.expe.selec[7],"ward.D")
+plot.chrono.class.expe(list.expe.selec[7],df.expe)
+plot.chrono.expe.2(list.expe.selec[7],df.expe)
+df.expe <- chrono.class.expe(df.selec,list.expe.selec[7],"ave")
+plot.chrono.class.expe(list.expe.selec[7],df.expe)
+plot.chrono.expe.2(list.expe.selec[7],df.expe)
+```
+
+#Experience `r list.expe.selec[8]`
+```{r, echo=F, cache=F,fig.height=18, fig.width=15, fig.cap="déplacement des données entre les neurones",warning=F}
+list.gg[[8]]
+plot.dendro(list.expe.selec[8],"ward.D")
+plot.dendro(list.expe.selec[8],"ave")
+df.expe <- chrono.class.expe(df.selec,list.expe.selec[8],"ward.D")
+plot.chrono.class.expe(list.expe.selec[8],df.expe)
+plot.chrono.expe.2(list.expe.selec[8],df.expe)
+df.expe <- chrono.class.expe(df.selec,list.expe.selec[8],"ave")
+plot.chrono.class.expe(list.expe.selec[8],df.expe)
+plot.chrono.expe.2(list.expe.selec[8],df.expe)
+```
+
+

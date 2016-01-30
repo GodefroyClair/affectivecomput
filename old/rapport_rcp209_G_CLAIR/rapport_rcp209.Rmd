@@ -11,7 +11,7 @@ output:
     toc: yes
     toc_depth: 3
   html_document:
-    css: C:/Users/Godefroy/Google Drive/ProjetPsychoGame/style/gamer-expe.css
+    css: /Users/godot/githubRepos/affectiveComputing/style/gamer-expe.css
     number_sections: yes
     toc: yes
   word_document: default
@@ -115,7 +115,7 @@ Tout ces appareils/logiciels sont fournis par la société TEA. Les capteurs fon
 
 Selon les spécifications fournies par le constructeur, il s'agit d'un "module à transmission sans fil pour la mesure de la fréquence cardiaque grâce à une ceinture thoracique"[^1]. Voir image \label{cfm}
 
-![Image du capteur CFM\label{cfm}](C:\Users\Godefroy\Google Drive\ProjetPsychoGame\img\CFM.jpg "Photographie d'un capteur CFM permettant de calculer la fréquence cardiaque")
+![Image du capteur CFM\label{cfm}](/Users/godot/githubRepos/affectiveComputing/img/CFM.jpg "Photographie d'un capteur CFM permettant de calculer la fréquence cardiaque")
 
 Le tableau suivant est aussi fourni dans le document :
 
@@ -138,7 +138,7 @@ En réalité, afin de ne pas gêner le participant dans ses mouvements, les exp�
 L'objectif concernant la mesure de la conductivité électrodermale est de mesurer l'intensité du courant électrique à la surface de la peau, ce qui est généralement vu comme une bonne approximation de la transpiration.
 
 
-![Image du capteur GSR \label{gsr}](C:\Users\Godefroy\Google Drive\ProjetPsychoGame\img\GSR.jpg "Photographie d'un capteur GSR permettant de cacluler l'activité electro-dermale et la température")
+![Image du capteur GSR \label{gsr}](/Users/godot/githubRepos/affectiveComputing/img/GSR.jpg "Photographie d'un capteur GSR permettant de cacluler l'activité electro-dermale et la température")
 
 \break
 <br/>
@@ -174,7 +174,7 @@ L'objectif concernant la mesure de la conductivité électrodermale est de mesur
 
 le capteur est un "module à transmission sans fil pour la mesure des mouvements thoraciques ou abdominaux. Le module (ceinture inclue) fournit des informations permettant d’analyser le rythme respiratoire et l’amplitude des respirations"[^3]. Voir image \label{respi}
 
-![Image du capteur de respiration\label{respi}](C:\Users\Godefroy\Google Drive\ProjetPsychoGame\img\Respi.jpg "Photographie d'un capteur de la respiration")
+![Image du capteur de respiration\label{respi}](/Users/godot/githubRepos/affectiveComputing/img/Respi.jpg "Photographie d'un capteur de la respiration")
 
 **Caractéristiques du capteur :**
 
@@ -231,7 +231,7 @@ Nous avons reçu de Viviane Gal un fichier par expérience. Ce fichier est un ta
 
 La figure 1 représente les premières lignes des données pour l'expérience AB.
 
-![exemple d'un tableau de données reçu](C:\Users\Godefroy\Google Drive\ProjetPsychoGame\img\ex-donnees-brutes.png "Exemple d'un tableau de données reçu")
+![exemple d'un tableau de données reçu](/Users/godot/githubRepos/affectiveComputing/img/ex-donnees-brutes.png "Exemple d'un tableau de données reçu")
 
 *Les fichiers qui nous ont été donnés pour le moment sont au nombre de 10*. Le nom de chaque fichier est une concaténation des initiales de la personne ayant fait le test avec un numéro si la personne a fait plusieurs expériences et avec le terme "SurEchantillonHF".
 Par exemple, pour l'individu A.B., le fichier sera "AB_SurEchantillonHF.csv".
@@ -289,7 +289,7 @@ hp.gd.path <- "C:/Users/Godefroy/githubRepos/"
 
 if(Sys.info()['nodename']=="THIM")gd.path <- hp.gd.path else
   gd.path <- mac.gd.path
-data.path <- paste(gd.path,"affectiveComputing/data/",sep = "/")
+data.path <- paste(gd.path,"affectiveComputing/data-brute/",sep = "/")
 
 load.file <- function(filename){
   
@@ -346,7 +346,7 @@ df.all$nom.experience <- factor(df.all$nom.experience)
 | "DA" | `r paste(nrow(data.DA),"x",ncol(data.DA))`|
 | "CW" | `r paste(nrow(data.CW),"x",ncol(data.CW))`|
 | "FS1" | `r paste(nrow(data.FS1),"x",ncol(data.FS1))`|
-| "HL" | `r paste(nrow(data.HL),"x",ncol(data.HL))`|
+| "HL" | `r paste(nrow(data.HL),"x",ncol(data.HL))`|  
 | "LM" | `r paste(nrow(data.LM),"x",ncol(data.LM))`|
 | "PCo" | `r paste(nrow(data.PCo),"x",ncol(data.PCo))`|
 | "PCo2" | `r paste(nrow(data.PCo2),"x",ncol(data.PCo2))`|
@@ -354,6 +354,12 @@ df.all$nom.experience <- factor(df.all$nom.experience)
 | "ST" | `r paste(nrow(data.ST),"x",ncol(data.ST))`|
 | "CLP" | `r paste(nrow(data.CLP),"x",ncol(data.CLP))`|
 | "DE" | `r paste(nrow(data.DE),"x",ncol(data.DE))`|
+| "AW" | `r paste(nrow(data.AW),"x",ncol(data.AW))`|
+| "DA2" | `r paste(nrow(data.DA2),"x",ncol(data.DA2))`|
+| "DA3" | `r paste(nrow(data.DA3),"x",ncol(data.DA3))`|
+| "EZ1" | `r paste(nrow(data.EZ1),"x",ncol(data.EZ1))`|
+| "GC1" | `r paste(nrow(data.GC1),"x",ncol(data.GC1))`|
+| "IA" | `r paste(nrow(data.IA),"x",ncol(data.IA))`|
 
 Représentation des 5 premières données pour l'expérience AB pour exemple :
 ```{r, echo=F, cache=T, comment=""}

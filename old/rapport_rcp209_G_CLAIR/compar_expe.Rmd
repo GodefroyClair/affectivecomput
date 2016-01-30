@@ -1,0 +1,49 @@
+---
+output: html_document
+---
+---
+title: "Mesures physiologiques des émotions dans la pratique des jeux vidéos.""
+author:
+- name: "Godefroy Clair"
+- affiliation: Paris 8
+
+date : "08 mai 2015"
+
+output: html_document
+fig_caption: no
+fig_height: 5
+fig_width: 7
+highlight: default
+keep_md: no
+number_sections: no
+---
+
+
+
+
+
+
+### 1. Tranformation des données (nettoyage, mises en forme, décomposition, marquage)
+ 
+
+chargement des données au format numérique (sauf 1ère colonne au format "date", POSIX)
+
+
+
+
+####respiration : Jitter graphs
+
+`r# list.jitters[[2]]`
+
+####transpiration (activité electroderm.) : Jittergraphs
+
+
+
+####température : Jitter graphs
+
+
+
+####fréquence cardiaque : Jitter graphs
+
+
+
