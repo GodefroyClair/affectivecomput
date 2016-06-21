@@ -56,7 +56,6 @@ require(kohonen)
 ```
 
 ```{r setoptions, echo=FALSE, cache=F, comment=''}
-library(knitr)
 opts_chunk$set(echo = TRUE,results='hold', cache=F)
 ```
 

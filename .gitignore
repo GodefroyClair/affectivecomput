@@ -6,3 +6,4 @@ lib.R
 data/
 data-vrac/
 old/data-brute/
+.Rproj.user

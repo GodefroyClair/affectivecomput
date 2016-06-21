@@ -1,0 +1,152 @@
+---
+title: "Notes sur les 4 mesures physiologiques"
+author: "Godefroy Clair"
+date: "4 avril 2016"
+output: html_document
+---
+
+
+#RESPIRATION :
+IL faudrait pouvoir faire des comparaisons sur l'amplitude et la période
+
+##AB:
+jusqu'à la moitié ajustement
+conjecture : plus la ceinture est serrée plus l'amplitude est grande ?
+a remis en place sa ceinture au milieu et à la fin
+fin : on atteint la limite (-18.67)
+
+##ST:
+petit ajustement pendant 1/3 de l'expe
+amplitude semble comparable pdt toute l'expe
+
+##DA:
+légère ajustement pendant toute l'expe
+atteint la limite à la fin (-18.6)
+
+##LM:
+presque toujours en dessous des limites (-18.6)
+illisible
+
+##FS1:
+valeurs abérantes
+plusieurs périodes à 0
+ajustement
+amplitude très variable !
+
+##PCo:
+valeurs positives
+
+##PCo2:
+valeurs autour de zéro
+
+##PCo3: 
+valeurs autour de zéro
+
+##CW:
+fort ajustement pendant le 1er tiers de l'expérience
+réajustement au milieu
+faible ajustement ensuite
+l'amplitude diminue légèrement à mesure que la ceinture se relâche
+
+##HL: 
+valeurs + > 6
+grande variation
+conjecture : influence de niveau de serrement sur la variation ? 
+conjecture : ininterprétable si > à un seuil ?
+
+##CLP: 
+ajustement pendant 1/3 de l'expe
+min en deça du seuil de reconnaissance (-18.67) ensuite
+
+##DE: 
+valeurs positives entre 8 et 16
+légère variation de la moyenne
+amplitude légèrement décroissante
+
+##AW: 
+valeur négatives entre -5 et -17
+périodes d'ajustement de 1/3
+quelques valeurs négatives (1358)
+9 périodes de 1 ou 2 secondes
+
+##DA2:
+valeurs négatives entre -15 et -19
+min en deça du seuil (-18.6) pdt toute l'expé
+
+##DA3:
+valeurs négatives entre -15 et -19
+min en deça du seuil (-18.6) pdt toute l'expé
+
+##EZ1:
+valeurs entre 5 et -5
+ajustement pendant 2/3 de l'expe
+
+##GC1:
+valeurs entre 12.5 et -1
+ajustement pendant 2/3 de l'expe
+réajustement brusque à la fin ?
+
+##IA:
+valeurs entre 3 et -11
+ajustement pendant tout le 
+plusieurs réajustements brusques ?
+amplitude de plus en plus faible
+
+##Conclusion :
+https://www.biopac.com/knowledge-base/respiration-recording/
+
+#TEMPERATURE
+
+##AB:
+valeurs entre 19 et 33 !
+downscale:ok-upscale,
+
+##ST:
+valeurs entre 26.2 et 27.2
+1/2d. descente progressive
+1/2f. montée assez brutale
+
+##DA:
+valeurs entre 26.5 et 29
+montée forte puis progressive
+
+##LM
+valeurs entre 22.9 et 23.05
+1/3f montée prog
+effet "code barre"
+
+##FS1
+valeurs entre 21.5 et 22.5 
+1/3d : montée forte
+2/3f : baisse prog
+effet "code barre"
+
+##PCo
+valeurs entre 22.2 et 23
+d : montée brutale
+descente prog
+moitié: chute
+PCo2:no-upscale;downscale, PCo3:ok-debut, CW:no-2deg, HL:ok, CLP:no-downslope, DE:no-scaleup;6deg, AW:ok-up, DA2:ok, DA3:ok?-downslope, EZ1:no-weird, GC1:ok, IA:no-range,peak?
+
+##PCo2:
+valeurs entre  et 
+
+
+##Pco3:
+valeurs entre  et 
+
+
+##CW:
+valeurs entre  et 
+
+
+##HL:
+valeurs entre  et 
+
+
+##CLP:
+valeurs entre  et 
+
+##conclusion :
+necessiter d'arrondir ?
+
