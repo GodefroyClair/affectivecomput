@@ -17,6 +17,7 @@ theme_set(theme_bw(24))
 source("../general-functions/dplyr-functions.R")
 source("../general-functions/ggplot-functions.R")
 source("../general-functions/load-functions.R")
+source("../general-functions/clean-filters-functions.R")
 
 mac.gd.path <- "/Users/godot/githubRepos/"
 hp.gd.path <- "C:/Users/Godefroy/githubRepos/"
@@ -31,10 +32,9 @@ data.path <- paste(gd.path,"affectiveComputing/data/",sep = "/")
 load.data <- function(exp){
   filename <- paste(data.path,exp, "_SurEchantillonHF_header.csv", sep="")
   # print(filename)
-  
+  df.name <- paste("data.", exp, sep="")
   #permet de lancer la fonction load.file sur la liste passée en arguments
-  assign(paste("data.", exp, sep=""), load.file(filename), envir = .GlobalEnv)
-  
+  assign(df.name, load.file(filename), envir = .GlobalEnv)
 }
 
 list.exp <- c("AB", "ST", "DA", "LM", "FS1", "PCo", "PCo2", "PCo3", "CW", 
@@ -42,6 +42,7 @@ list.exp <- c("AB", "ST", "DA", "LM", "FS1", "PCo", "PCo2", "PCo3", "CW",
 
 list.half.1 <- list.exp[1:floor(length(list.exp)/2)]
 list.half.2 <- list.exp[(floor(length(list.exp)/2)+1):length(list.exp)]
+#charge les dataset en mémoire
 list.df <- lapply(list.exp,load.data)
 
 df.all <- do.call(rbind, list.df)
@@ -100,9 +101,10 @@ plot.mesure.direct(data.AB[20000:30000,])
 
 plot.echantillon(data.AB)
 plot.echantillon(data.AB[1:1000,])
-chrono.plot.direct(data.AB,"respiration",.01,taille=1000,names="AB")
+chrono.plot.direct(data.AB,"respiration",.01,taille=10000,names="AB")
 chrono.plot.direct(data.CW,"respiration",.01,taille=2500,names="CW")
 chrono.plot.direct(data.CW,"respiration",.01,taille=10000,names="IA",offset=20000)
+chrono.plot.direct(data.CW,"respiration",.01,taille=10000,names="IA",offset=0)
 
 
 #filter
@@ -111,10 +113,58 @@ chrono.plot.direct(data.CW,"respiration",.01,taille=10000,names="IA",offset=2000
 #pour la périodicité, il faut mesurer la fréquence en comparant un filtre passe-bas élevé (env 1/500) et moins élevé (1/50)
 #pour l'amplitude, il faut un filtre
 #par ailleurs, pour mettre la courbe à plat, il faut utiliser un filtre passe-haut assez élevé (1/000?)
-hf <- butter(1, 1/1000, type="high")
+aw.hf <- butter(1, 1/1000, type="high")
+#retire les données à zeros
+# clean.data <- function(df, var.to.clean){data.AW[!(var.to.clean == 0),]  }
+data.AW.clean <- data.AW[!(data.AW$respiration == 0),] 
 
-data.AW.m <- data.AW[!(data.AW$respiration == 0),] 
-aw.bf <- butter(1, 1/20, type="low")
+#filtre passe bas pour éliminer les fréquences basses (ie périodes longues) todo : justifier 1/20
+aw.lf <- butter(1, 1/75, type="low")
+
+#eleminates noise
+data.AW.clean$respiration.lf <- signal::filter(aw.lf,data.AW.clean$respiration)
+#elminates trends
+data.AW.clean$respiration.hf <- signal::filter(aw.hf,data.AW.clean$respiration)
+
+data.AW.clean$respiration.hlf <- signal::filter(aw.hf,as.numeric(data.AW.clean$respiration.lf))
+
+library(pracma)
+#recheche de max
+
+#travaille sur un échantillon
+offset <- 10000
+sample.AW.clean <- data.AW.clean[offset + 0: (offset + 2001),]
+max.peaks.samp <- as.data.frame(findpeaks(sample.AW.clean$respiration.hlf ))
+max.peaks.samp$x <- sample.AW.clean$date[max.peaks.samp[,2] ]
+#with noise
+max.peaks.hf.samp <- as.data.frame(findpeaks(sample.AW.clean$respiration.hf ))
+max.peaks.hf.samp$x <- sample.AW.clean$date[max.peaks.hf.samp[,2] ]
+
+ggplot(sample.AW.clean, aes(y = respiration.hlf, date)) + geom_point( color = "green", alpha = .4) +
+  geom_point(data = max.peaks.samp, aes(x = x, y = V1), color = "blue", alpha = 1) + 
+  geom_point(aes(y = respiration.hf), color = "pink", alpha = .5) +
+  geom_point(data = max.peaks.hf.samp, aes(x = x, y = V1), color = "magenta", alpha = 1, size = .9)
+  
+
+#travaille sur l'ens des données
+offset <- 10000
+max.peaks <- as.data.frame(findpeaks(as.numeric(data.AW.clean$respiration.hlf )))
+max.peaks$x <- data.AW.clean$date[max.peaks[,2] ]
+str(max.peaks)
+
+ggplot(data.AW.clean, aes(y = respiration.lf, date)) + geom_line( color = "blue") +
+ geom_line(aes(y = respiration.hlf), color = "red", alpha = .75) +
+ geom_line(aes(y = respiration), color = "green", alpha = .75) +
+ #geom_smooth(method="loess", formula = y ~ x,se=TRUE, size= 1, span=.1) +
+ geom_smooth(aes(y = respiration.hlf), se=TRUE, formula= y ~ poly(x,5), colour="purple") +
+ geom_smooth(se=TRUE, formula= y ~ poly(x,2), colour="orange", span=.1) +
+ geom_point(data = max.peaks, aes(x = x, y = V1))
+
+
+
+################FIN AW###################
+
+
 data.CLP.m <- data.CLP[1:17000,]
 clp.bf <- butter(1, 1/20, type="low")
 data.CW.m <- data.CW
@@ -136,10 +186,12 @@ data.GC1.m$resp.lf.lo <- loess(data.GC1.m$resp.low.f ~ as.numeric(data.GC1.m$dat
 
 data.LM.m <- NULL
 
+data.HL.m <- data.HL
+chrono.plot.direct(data.HL.m, "respiration")
 bf <- butter(1, 1/100, type="low")
 data.HL.m$resp.high.f <- signal::filter(hf,data.HL.m$respiration)
 data.HL.m$resp.low.f <- signal::filter(bf,data.HL.m$respiration)
-ggplot(data = data.HL.m, aes(x = as.numeric(date),y = resp.lf.lo)) + geom_line(col = "red") + 
+ggplot(data = data.HL.m, aes(x = as.numeric(date),y = resp.high.f)) + geom_line(col = "red") + 
   geom_line(data = data.HL.m, aes(x = as.numeric(date),y = resp.low.f), col = "blue") 
 df <-data.frame(data.CW$date[1:lg],b,data.CW$respiration[1:lg])
 colnames(df) <- c("date","filter.low","respi")
@@ -147,13 +199,13 @@ colnames(df) <- c("date","filter.low","respi")
 ggplot(df[1:10000,],aes(date,filter.low)) + geom_line(size=1) + 
     geom_point(aes(y=respi),col="orange",size=1) 
 
-
+ 
 lowpass.spline <- smooth.spline(df$date,df$respi, spar = 0.0001)
 df$lowpass.spline <-lowpass.spline$y
 
 ggplot(df[10000:20000,],aes(date,filter.low)) + geom_line(size=2) + 
   geom_point(aes(y=respi),col="orange",size=1) +
-  geom_point(aes(y=lowpass.spline),col="green")
+  geom_point(aes(y=lowpass.spline),col="green") 
 
 
 #changepoint
@@ -240,6 +292,7 @@ plot.echantillon(data.AB[1:1000,])
 chrono.plot.direct(data.AB,"respiration",.01,taille=1000,names="AB")
 chrono.plot.direct(data.CW,"respiration",.01,taille=2500,names="CW")
 chrono.plot.direct(data.CW,"respiration",.01,taille=10000,names="IA",offset=20000)
+
 
 lapply(list.exp.df,function(exp){chrono.plot(exp,"temperature")})
 
