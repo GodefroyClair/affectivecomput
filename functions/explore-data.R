@@ -99,13 +99,64 @@ df.rupt.AB <- df.all[df.all$nom.experience %in% c("AB"),]
 plot.evol.par.expe(df.rupt.AB[20000:30000,],titre="rupture, AB")
 plot.mesure.direct(data.AB[20000:30000,])
 
-plot.echantillon(data.AB)
-plot.echantillon(data.AB[1:1000,])
-chrono.plot.direct(data.AB,"respiration",.01,taille=10000,names="AB")
-chrono.plot.direct(data.CW,"respiration",.01,taille=2500,names="CW")
-chrono.plot.direct(data.CW,"respiration",.01,taille=10000,names="IA",offset=20000)
-chrono.plot.direct(data.CW,"respiration",.01,taille=10000,names="IA",offset=0)
+################################
+##### Patterns par individu ####
+################################
 
+##AB
+# hyperventilation ?
+chrono.plot.direct(data.AB, "respiration", taille=500, offset=200)
+# hyperventilation ?
+chrono.plot.direct(data.AB, "respiration", taille=1000, offset=3600)
+#zoom
+chrono.plot.direct(data.AB, "respiration", taille=500, offset=3800)
+#hyperventilation ou mauvaise mesure ?
+chrono.plot.direct(data.AB, "respiration", taille=500, offset=5400)
+chrono.plot.direct(data.AB, "respiration", taille=300, offset=5500)
+#hypoventilation ?
+chrono.plot.ellipse(data.AB[5000:13000,], "respiration", taille=2000, offset=5000)
+chrono.plot.direct(data.AB, "respiration", taille=4000, offset=10000)
+chrono.plot.direct(data.AB, "respiration", taille=1000, offset=10000)
+chrono.plot.direct(data.AB, "respiration", taille=800, offset=10100)
+
+#Conclusion pour AB : doit-on prendre en compte les "pics" ?
+
+##AW
+
+chrono.plot.direct(data.AW, "respiration", taille=5000, offset=0000)
+chrono.plot.direct(data.AW, "respiration", taille=5000, offset=10000)
+chrono.plot.direct(data.AW, "respiration", taille=5000, offset=20000)
+chrono.plot.direct(data.AW, "respiration", taille=5000, offset=25000)
+chrono.plot.direct(data.AW, "respiration", taille=5000, offset=30000)
+chrono.plot.direct(data.AW, "respiration", taille=5000, offset=35000)
+chrono.plot.direct(data.AW, "respiration", taille=5000, offset=40000)
+chrono.plot.direct(data.AW, "respiration", taille=5000, offset=45000)
+
+##CW
+#réajustement ceinture ?
+chrono.plot.direct(data.CW, "respiration", taille=800, offset=22200)
+#parle ou bouge ?
+chrono.plot.direct(data.CW, "respiration", taille=500, offset=25600)
+#idem ?
+chrono.plot.direct(data.CW, "respiration", taille=700, offset=30000)
+chrono.plot.direct(data.CW, "respiration", taille=5000, offset=44000)
+
+
+
+
+chrono.plot.direct(data.CW,"respiration",.01,taille=10000,offset=0)
+chrono.plot.direct(data.CW,"respiration",.01,taille=10000,offset=10000)
+chrono.plot.direct(data.CW,"respiration",.01,taille=10000,offset=20000)
+chrono.plot.direct(data.CW,"respiration",.01,taille=10000,offset=30000)
+chrono.plot.direct(data.CW,"respiration",.01,taille=10000,offset=40000)
+chrono.plot.direct(data.CW,"respiration",.01,taille=10000,offset=50000)
+
+chrono.plot.direct(data.CW,"respiration",.01,taille=400,names="IA",offset=25700)
+chrono.plot.direct(data.CW,"respiration",.01,taille=10000,names="IA",offset=20000)
+
+########################################
+############## fin patterns ############
+########################################
 
 #filter
 #problème à envisager : perte d'amplitude
@@ -140,7 +191,7 @@ max.peaks.samp$x <- sample.AW.clean$date[max.peaks.samp[,2] ]
 max.peaks.hf.samp <- as.data.frame(findpeaks(sample.AW.clean$respiration.hf ))
 max.peaks.hf.samp$x <- sample.AW.clean$date[max.peaks.hf.samp[,2] ]
 
-ggplot(sample.AW.clean, aes(y = respiration.hlf, date)) + geom_point( color = "green", alpha = .4) +
+ggplot(sample.AW.clean, aes(y = respiration.hlf, date)) + geom_point( color = "lightblue", alpha = .7) +
   geom_point(data = max.peaks.samp, aes(x = x, y = V1), color = "blue", alpha = 1) + 
   geom_point(aes(y = respiration.hf), color = "pink", alpha = .5) +
   geom_point(data = max.peaks.hf.samp, aes(x = x, y = V1), color = "magenta", alpha = 1, size = .9)
@@ -155,11 +206,19 @@ str(max.peaks)
 ggplot(data.AW.clean, aes(y = respiration.lf, date)) + geom_line( color = "blue") +
  geom_line(aes(y = respiration.hlf), color = "red", alpha = .75) +
  geom_line(aes(y = respiration), color = "green", alpha = .75) +
- #geom_smooth(method="loess", formula = y ~ x,se=TRUE, size= 1, span=.1) +
+ # geom_smooth(method="loess", formula = y ~ x,se=TRUE, size= 1, span=.1) +
  geom_smooth(aes(y = respiration.hlf), se=TRUE, formula= y ~ poly(x,5), colour="purple") +
  geom_smooth(se=TRUE, formula= y ~ poly(x,2), colour="orange", span=.1) +
  geom_point(data = max.peaks, aes(x = x, y = V1))
 
+
+
+data.AW.clean$loess <- loess(data.AW.clean$respiration ~ as.numeric(data.AW.clean$date), degree=1,span=.1)$fitted
+data.AW.clean$s.max.min <- signal.max.min(data.AW.clean$respiration, data.AW.clean$loess)
+ggplot(data = data.AW.clean[0:10000,]) + geom_line(aes(x= date, y = respiration), color = "blue") +
+  #geom_smooth(method="loess", formula = y ~ x, se=TRUE, size= 1, span=.2, color = "green")  +
+  geom_line(aes(x = date, y = loess ), color = "green")  +
+  geom_line(aes(x = date, y = s.max.min), color = "red") 
 
 
 ################FIN AW###################
@@ -289,9 +348,9 @@ plot.mesure.direct(data.AB[20000:30000,])
 
 plot.echantillon(data.AB)
 plot.echantillon(data.AB[1:1000,])
-chrono.plot.direct(data.AB,"respiration",.01,taille=1000,names="AB")
-chrono.plot.direct(data.CW,"respiration",.01,taille=2500,names="CW")
-chrono.plot.direct(data.CW,"respiration",.01,taille=10000,names="IA",offset=20000)
+chrono.plot.direct(data.AB,"respiration",taille=1000,names="AB")
+chrono.plot.direct(data.CW,"respiration",taille=2500,names="CW")
+chrono.plot.direct(data.CW,"respiration",taille=10000,names="IA",offset=20000)
 
 
 lapply(list.exp.df,function(exp){chrono.plot(exp,"temperature")})
