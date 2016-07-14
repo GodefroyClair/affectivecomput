@@ -281,8 +281,6 @@ lapply(list.exp.df,function(exp){chrono.plot(exp,"respiration")})
 ###################FIN RESPIRATION #########################
 ############################################################
 
-#regression :
-regTemp <- lm(data.CW$temperature ~ poly(1:length(data.CW$temperature)))
 
               #######################
               ######TEMPERATURE######
@@ -293,9 +291,11 @@ plot.evol.par.expe(df.half.2, mesure = "temperature", titre = "température 2nde
 
 plot.evol.par.expe(df.half.1, mesure = "temperature", lim.bas=20, lim.haut = 35, titre = "température 1ere partie des expé")
 plot.evol.par.expe(df.half.2, mesure = "temperature", lim.bas=20, lim.haut = 35, titre = "température 2nde moitié des expé")
-m
+
 df.DA <- df.all %>% filter(nom.experience == "DA", tps.ecoule < 50)
-plot.evol.par.expe(df.DA,titre="expérience DA, valeur à 0", mesure = "temperature")
+plot.evol.par.expe(df.DA,titre="expérience DA, valeur proche de 0", mesure = "temperature")
+df.DA.clean <- df.all %>% filter(nom.experience == "DA", tps.ecoule < 50, temperature >8)
+plot.evol.par.expe(df.DA.clean,titre="expérience DA, valeurs inf à 9 nettoyées", mesure = "temperature")
 
 plot.evol.par.expe(df.all[df.all$tps.ecoule<10,], mesure = "temperature", titre="premiers instants")
 plot.evol.par.expe(df.half.1[df.half.1$tps.ecoule<5,], mesure = "temperature", titre="premiers instants")
@@ -311,7 +311,7 @@ df.deb <- df.all %>% filter(nom.experience == "AW", tps.ecoule < 75)
 plot.evol.par.expe(df.deb,titre="expérience AW", mesure = "temperature")
 
 ######################
-######BROUILLON######
+######BROUILLON#######
 ######################
 
 df.apprenti <- df.all[df.all$nom.experience %in% c("AB","ST","DA","FS1","CW","AW","EZ1","GC1","IA"),]
@@ -355,8 +355,15 @@ chrono.plot.direct(data.CW,"respiration",taille=10000,names="IA",offset=20000)
 
 lapply(list.exp.df,function(exp){chrono.plot(exp,"temperature")})
 
+#############################################################
+######################### ACTIVITE ELECTRO DERM #############
+############################################################# 
 lapply(list.exp.df,function(exp){chrono.plot(exp,"activite.electrodermale")})
 #AB:ok-highpeak!!, ST:no:flat, DA:ok, LM:ok-upsacle, FS1:ok-upscale, PCo:ok-upslope, PCo2:ok-peaks, PCo3:ok-peaks, CW:ok-debut,downslope?,HL:no-flat,CLP:ok-peaks, DE:ok-debut?, AW:ok, DA2:ok?-downslope, DA3:ok, EZ1:ok-peak?,GC1:ok?,IA:?
+
+#############################################################
+######################### FREQUENCE CARDIAQUE ###############
+############################################################# 
 lapply(list.exp.df,function(exp){chrono.plot(exp,"frequence.cardiaque")})
 #AB:ok, ST:ok,DA:ok-debut?, LM:ok, FS1:ok, PCo:ok, PCo2:ok, PCo3:ok, CW:ok,HL:ok,CLP:ok, DE:ok-début?, AW:ok-zeros, DA2:ok, DA3:ok, EZ1:ok,GC1:ok-zero,IA:ok
 
