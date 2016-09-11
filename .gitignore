@@ -7,3 +7,5 @@ data/
 data-vrac/
 old/data-brute/
 .Rproj.user
+angles.R
+.DS_Store
