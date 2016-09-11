@@ -2,6 +2,7 @@
 ######################## CREATE SOM MAP ###################
 ###########################################################
 
+library(devtools)
 library(plyr)
 library(ggplot2)
 library(gtable)
@@ -16,6 +17,9 @@ library(ggradar)
 library(purrr)
 library(reshape2)
 library(lubridate)
+library(data.table)
+#install_github("vqv/ggbiplot")
+library(ggbiplot)
 #instal ggradar : devtools::install_github("ricardo-bion/ggradar", dependencies=TRUE)
 # configured to work on a Mac, change directory to Unix or Windows
 #download.file("https://dl.dropboxusercontent.com/u/2364714/airbnb_ttf_fonts/Circular Air-Light 3.46.45 PM.ttf", "/Library/Fonts/Circular Air-Light 3.46.45 PM.ttf", method="curl")
@@ -34,11 +38,11 @@ PRINT <- FALSE
 ############################################################
 
 
-source("../general-functions/dplyr-functions.R")
-source("../general-functions/load-functions.R")
-source("../general-functions/cleaning-functions.R")
-source("../general-functions/ggplot-functions.R")
-source("../general-functions/clean-filters-functions.R")
+source("../RGeneralFunctions/dplyr-functions.R")
+source("../RGeneralFunctions/load-functions.R")
+source("../RGeneralFunctions/cleaning-functions.R")
+source("../RGeneralFunctions/ggplot-functions.R")
+source("../RGeneralFunctions/clean-filters-functions.R")
 
 mac_gd_path <- "/Users/godot/githubRepos/"
 hp_gd_path <- "C:/Users/Godefroy/githubRepos/"
@@ -362,11 +366,44 @@ if(DEBUG) {
 #######################
 ########ACP ###########
 #######################
+colnames(df_stat_scale_scale)
+df_pca <- df_stat_scale_scale %>% select(-nom.experience, -loess)
+df_pca_AB_CW <-  df_stat_scale_scale  %>% as.data.table()  %>% 
+  dplyr::filter(nom.experience == "AB", )  %>% select(-nom.experience, -loess)
 
-      #####################################
-      #############TO DO !!################
-      #####################################
+pca_AB_CW <- prcomp(df_pca_AB_CW, center = T, scale =T)
+str(pca_AB_CW)
+print(pca_AB_CW)
+summary(pca_AB_CW)
+plot(pca_AB_CW, type = "l")
+biplot(pca_AB_CW)
 
+pca <- prcomp(df_pca, center = T, scale =T)
+str(pca)
+print(pca)
+summary(pca)
+plot(pca, type = "l")
+
+# Predict PCs
+#predict(pca,  newdata=tail(df_scale_scale, 2))
+
+require(graphics)
+biplot(pca)
+
+install_github("ggbiplot", "vqv")
+
+ggscreplot(pca, type = c("pev", "cev"))
+
+ggbiplot(pca, obs.scale = 1, var.scale = 1, 
+              ellipse = TRUE, 
+              circle = TRUE) +
+  scale_color_discrete(name = '') + 
+  theme(legend.direction = 'horizontal', 
+               legend.position = 'top')
+ggbiplot(pca, obs.scale = 1, var.scale = 1,
+         groups = df_stat_scale_scale$nom.experience, ellipse = TRUE, circle = TRUE) +
+  scale_color_discrete(name = '') +
+  theme(legend.direction = 'horizontal', legend.position = 'top')
 #=======================================#
 ############### K-MEANS #################
 #=======================================#
@@ -405,46 +442,61 @@ plot( ratio_ss, type = "b", xlab = "k")
 #rlen permet de préciser le nombre d'itérations
 #temp à mettre au plus haut
 set.seed(77)
-df_SOM_scale_scale <-  df_stat_scaled_per_exp %>% dplyr::select(-nom.experience) %>% scale() %>% data.frame()
-#round(df_SOM_scaled_p_exp_norm, digits = 4)
+df_SOM_scale_scale <-  df_stat_scaled_per_exp %>% dplyr::select(-nom.experience, -loess) %>% scale() %>% data.frame()
+df_SOM_scaled <-  df_stat_scaled %>% dplyr::select(-nom.experience, -loess) %>% scale() %>% data.frame()
 
 i <- 1:60
 x <- 1:120
 y <- c(rep(1,60),1/i)
-som1 <- kohonen::som(data = as.matrix(df_SOM_scale_scale), grid = somgrid(30, 30, "hexagonal"), rlen=180, alpha =c(2,0.0001))
+nhbrdist <- unit.distances(som1$grid, som1$toroidal) #
+
+som1 <- kohonen::som(data = as.matrix(df_SOM_scale_scale), grid = somgrid(30, 30, "hexagonal"),
+                     rlen=300, alpha =c(2,0.0001), radius = quantile(nhbrdist, 0.9) * c(1, -1))
+#som2 <- kohonen::som(data = as.matrix(df_SOM_scaled), grid = somgrid(30, 30, "hexagonal"), rlen=180, alpha =c(2,0.0001))
+
+##Save main data for graphs (for markdown report)
+save(som1,file = "./data/som1.RDa")
+#save(som2,file = "./data/som2.RDa")
+save(df_stat_scale_scale, file = "./data/df_stat_scale_scale.RDa")
+save(df_stat_scaled, file = "./data/df_stat_scaled.RDa")
+save(df_selec, file = "./data/df_selec.RDa")
 
 
 ##GRAPHICS
 
-str(som1)
-ref.df <- data.frame(som1$codes)
-df_SOM_scale_scale$ref <- som1$unit.classif
+str(som2)
+ref.df <- data.frame(som2$codes)
+df_SOM_scale_scale$ref <- som2$unit.classif
 df_SOM_scale_scale$nom.experience <- df_selec$nom.experience
+
 
 
 par(xpd=F)
 par(mai=  c(0, 0, 0, 0))
 #ajout d'itération et une descente de temp plus smooth
-plot(som1, main = "", type="codes",labels = NULL) 
+plot(som2, main = "", type="codes",labels = NULL) 
 
-plot(som1, type="changes", main="carte du progrès d'apprentissage")
+plot(som2, type="changes", main="carte du progrès d'apprentissage")
 
-plot(som1, type="count", main= "carte de comptages des données captées")
+plot(som2, type="count", main= "carte de comptages des données captées")
 
 #obtenir un dégradé de couleurs de bleu à rouge
 coolBlueHotRed <- function(n, alpha = 1) {rainbow(n, end=4/6, alpha=alpha)[n:1]}
-plot(som1, type="quality", palette.name = coolBlueHotRed, main = "carte de \"qualité\" : distance moyenne des données aux neurones")
+plot(som2, type="quality", palette.name = coolBlueHotRed, main = "carte de \"qualité\" : distance moyenne des données aux neurones")
 
 #TODO : heatmap par variable
-plot(som1, type = "property", property = som1$codes[,1], main="carte heatmap de l'activité électrodermale", palette.name=coolBlueHotRed)
-plot(som1, type = "property", property = som1$codes[,2], main="carte heatmap de temperature", palette.name=coolBlueHotRed)
-plot(som1, type = "property", property = som1$codes[,3], main="carte heatmap de freq card", palette.name=coolBlueHotRed)
-plot(som1, type = "property", property = som1$codes[,4], main="carte heatmap de respi nettoyée", palette.name=coolBlueHotRed)
-plot(som1, type = "property", property = som1$codes[,5], main="carte heatmap de min max", palette.name=coolBlueHotRed)
-plot(som1, type = "property", property = som1$codes[,6], main="carte heatmap de frequence", palette.name=coolBlueHotRed)
+plot(som2, type = "property", property = som2$codes[,1], main="carte heatmap de l'activité électrodermale", palette.name=coolBlueHotRed)
+plot(som2, type = "property", property = som2$codes[,2], main="carte heatmap de temperature", palette.name=coolBlueHotRed)
+plot(som2, type = "property", property = som2$codes[,3], main="carte heatmap de freq card", palette.name=coolBlueHotRed)
+plot(som2, type = "property", property = som2$codes[,4], main="carte heatmap de respi nettoyée", palette.name=coolBlueHotRed)
+plot(som2, type = "property", property = som2$codes[,5], main="carte heatmap de trend", palette.name=coolBlueHotRed)
+plot(som2, type = "property", property = som2$codes[,6], main="carte heatmap de max par periode", palette.name=coolBlueHotRed)
+plot(som2, type = "property", property = som2$codes[,7], main="carte heatmap de min par periode", palette.name=coolBlueHotRed)
+plot(som2, type = "property", property = som2$codes[,8], main="carte heatmap de frequence", palette.name=coolBlueHotRed)
 
 
 ####################### NEW GRAPH WITH GGPLOT #########################
+
 
 #==========================================================================#
 ## Multi-radar graph (extension ggplot) pour les codes de chaque référent ##
@@ -460,11 +512,11 @@ plot(som1, type = "property", property = som1$codes[,6], main="carte heatmap de 
 
 #limit the nb of neurones we are working on to fasten the graph making process
 #nb_group has to be 300 in the end
-nb_group <- 600
-nb_var <- 9
+nb_group <- 100
+nb_var <- 8
 #make a df with the value of the variables associated with each neurone and the id of the neurone (group)
 #it is easier to rescale everythng to ratio ([0-1]) with rescale
-df_codes <- data.frame(som1$codes) %>% add_rownames(var = "group")  %>% 
+df_codes <- data.frame(som2$codes) %>% add_rownames(var = "group")  %>% 
   mutate_each(funs(rescale), -group)  %>% head(nb_group)
 #group needs to be numeric
 df_codes$group <- as.numeric(df_codes$group)
@@ -542,7 +594,7 @@ df_ref <- df_stat_scale_scale #inutile ??
 #on ajoute experience
 df_ref$nom_experience <- df_selec$nom.experience
 #et id_neurone
-df_ref$id_neurone <- som1$unit.classif
+df_ref$id_neurone <- som2$unit.classif
 #on retire le superflu, on regroupe par pair id_neurone associé - nom_experience...
 #...et on compte le nombre de données associé à chaque pair
 df_count_neuro_expe <- df_ref %>% select(id_neurone, nom_experience) %>% 
@@ -581,11 +633,11 @@ expe_major_par_neurone <- as.factor(colnames(expe_par_neurone[-1])[max.col(expe_
 #put NA in line of neurone empty
 expe_major_par_neurone[rowSums(expe_par_neurone)==0]<-NA
 #test <- as.factor(rep(c("AB","CW","DA"),300))
-#plot(som1, type = "property", property = as.numeric(test), main="expérience majoritaire par neurone")
+#plot(som2, type = "property", property = as.numeric(test), main="expérience majoritaire par neurone")
 
 #representation graphique de l'expérience majoritaire par neurones :
-plot(som1, type = "property", property = as.numeric(expe_major_par_neurone), main="",  heatkey =F,palette.name=coolBlueHotRed)
-text(x=som1$grid$pts[,1],y=som1$grid$pts[,2],labels=expe_major_par_neurone,cex = .5,font=2)
+plot(som2, type = "property", property = as.numeric(expe_major_par_neurone), main="",  heatkey =F,palette.name=coolBlueHotRed)
+text(x=som2$grid$pts[,1],y=som2$grid$pts[,2],labels=expe_major_par_neurone,cex = .5,font=2)
 
 
 ## Graph des répartitions entre expériences par neurones
@@ -632,7 +684,7 @@ ggplot(gathered_expe_par_n, aes(x = id_neurone, y = value, fill = factor(variabl
   expe_neuro_theme %+%
   ggtitle("expériences captées")
 
-ggplot(melted_expe_par_n, aes(x = variable, y = value, fill = variable)) %+% 
+ggplot(gathered_expe_par_n, aes(x = variable, y = value, fill = variable)) %+% 
   facet_wrap( ~ id_neurone, ncol = 30, scales = "free")  %+% 
   geom_bar(stat="identity") %+%
   #geom_text(aes(x = 2.5, y = 1, label = lab_rep), colour="black", size = 2, inherit.aes=F) %+%
@@ -650,7 +702,7 @@ df_sec <- as.data.table(df_selec)
 df_sec$one_sec_elapsed <- df_selec$tps.ecoule %>% round(digits = 0) %>% factor()
 df_sec$five_sec_elapsed <- df_selec$tps.ecoule %>% `/`(5)  %>% round(digits = 0) %>% factor()
 #on ajoute id_neurone
-df_sec$id_neurone <- som1$unit.classif
+df_sec$id_neurone <- som2$unit.classif
 
 
 ## Table of the time per neurones
@@ -667,11 +719,11 @@ df_count_neuro_5sec <- df_neuro_5sec %>%
   group_by(id_neurone, five_sec_elapsed, nom.experience) %>% summarise(count = n())
 
 #on utilise tidyr::spread pour que chaque expe est sa colonne
-expe_par_sec <- df_count_neuro_sec %>% spread(nom.experience, count, fill = 0)
+expe_par_sec <- df_count_neuro_1sec %>% spread(nom.experience, count, fill = 0)
 expe_par_5sec <- df_count_neuro_5sec %>% spread(nom.experience, count, fill = 0)
 
 ## table of the neurones graphs according to time
-dt_neur_coord <- data.table(id_neurones = 1:900, x = som1$grid$pts[,1], y = som1$grid$pts[,2])
+dt_neur_coord <- data.table(id_neurones = 1:900, x = som2$grid$pts[,1], y = som2$grid$pts[,2])
 
 #create a data table that for each experience shows the neurone path in the data and the time spent in each neurone
 chg_neur <- df_sec$id_neurone != lag(df_sec$id_neurone) | df_sec$nom.experience != lag(df_sec$nom.experience) 
@@ -685,8 +737,11 @@ nb_data <- no_chg %>% purrr::reduce( function(prev, cur) { if(cur == 1) {prev[le
 #creata a dt
 dt_path_neur <- data.table(path_neur, nom_expe, nb_data)
 dt_path_neur <- bind_cols(dt_path_neur,as.data.frame(dt_neur_coord[dt_path_neur$path_neur,.(x,y)]))
-df_path_neur$xend <- lag(df_path_neur$x)
-df_path_neur$yend <- lag(df_path_neur$y)
+#next neurone coordinates
+#let first of each experience at na ??
+new_expe <- dt_path_neur$nom_expe != lag(dt_path_neur$nom_expe)
+dt_path_neur$xend <- lag(dt_path_neur$x, default = dt_path_neur$x[1])
+dt_path_neur$yend <- lag(dt_path_neur$y, default = dt_path_neur$y[1])
 
 #new graph of the neurones
 ggplot(dt_neur_coord, aes(x = x, y = y)) + geom_point( col = "blue", shape = 21)
@@ -695,25 +750,48 @@ ggplot(dt_path_neur, aes(x = x, y = y)) %+% geom_point(aes(col = nom_expe, size 
 #graph with neurones color given according to the experience attached to it (add a little jitter to help with overlap)
 ggplot(dt_path_neur, aes(x = x, y = y)) %+% geom_jitter(aes(col = nom_expe), width = 0.5, height = 0.5, alpha = 0.5) 
 
-ggplot(dt_path_neur, aes(x = x, y = y)) %+% geom_point( aes(col = nom_expe)) %+% 
-  geom_segment(xend = lag(x, default = 0), yend = lag(y, default = 0))
+test_AB <- dt_path_neur %>% filter(nom_expe == "AB") %>% dplyr::mutate(elapsed_time = cumsum(nb_data)) %>% data.table
+
+ggplot(test_AB, aes(x = x, y = y)) %+% 
+  geom_point(col = "darkgrey")  %+%
+  geom_segment(aes(xend = xend, yend = yend, col = elapsed_time), alpha = .5, arrow = arrow(length = unit(0.02, "npc"))) %+%
+  scale_color_gradient2(mid = "blue", high = "red")
+
+dt_path_neur <- dt_path_neur %>% group_by(nom_expe) %>% mutate(elapsed_time = cumsum(nb_data)) %>% data.table() 
+
+cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+ggplot(dt_path_neur, aes(x = x, y = y)) %+%
+  ggplot2::facet_wrap(facets =  ~ nom_expe) %+% 
+  scale_color_manual(values = cbPalette) %+%
+  geom_point(aes(col = nom_expe)) 
 
 
-test_AB <- df_sec %>% filter(nom.experience == "AB")
-path_neur_AB <- test_AB$id_neurone[test_AB$id_neurone != lag(test_AB$id_neurone)]
-test_AB <- expe_par_sec %>% filter(AB > 0) %>% arrange(sec_elapsed)
+graph_path_neurons <- function(df) {
+  #colors & theme
+  cbPalette2 <- c("#F00000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+  simple_theme <- theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+                 panel.background = element_blank(), axis.line = element_line(colour = "black"))
+  
+  gg <-  ggplot(df, aes(x = x, y = y)) %+%
+    facet_wrap(facets =  ~ nom_expe) %+% 
+    geom_segment(aes(xend = xend, yend = yend, col = elapsed_time), alpha = .5, arrow = arrow(length = unit(0.05, "npc"))) %+% 
+    scale_color_gradient2(mid = "grey87", high = "grey27") %+%
+    geom_point(aes(fill = nom_expe, size = nb_data), shape = 21) %+% 
+    scale_fill_manual(values = cbPalette2) %+%
+    simple_theme %+%
+    ggtitle("déplacement des données entre les référents")
+  print(gg)
+}
 
-df_neur_coord$AB_data <- 0
-df_neur_coord[test_AB$id_neurone, ]$AB_data <- test_AB$AB
+dt_path_short <- dt_path_neur %>% filter(elapsed_time < 10000)
+graph_path_neurons(dt_path_short)
 
-#path between neurones
-df_AB_path <- df_selec %>% filter(nom.experience == "AB") 
-som1$unit.classif
+dt_path_short2 <- dt_path_neur %>% filter(elapsed_time >= 10000 & elapsed_time < 20000)
+graph_path_neurons(dt_path_short2)
 
+dt_path_short3 <- dt_path_neur %>% filter(elapsed_time >= 20000 & elapsed_time < 30000)
+graph_path_neurons(dt_path_short3)
 
-ggplot(df_neur_coord, aes(x = x, y = y)) + geom_point(aes(size = AB_data), col = "blue", shape = 21) #+ ge
-test_AB
-
-
-df_count_id_sec <- df_sec %>% select(id_neurone, sec_elapsed, nom.experience) %>% 
-  group_by(sec_elapsed, id_neurone) %>% summarise(count = n())
+dt_path_short4 <- dt_path_neur %>% filter(elapsed_time >= 30000 & elapsed_time < 40000)
+graph_path_neurons(dt_path_short4)
