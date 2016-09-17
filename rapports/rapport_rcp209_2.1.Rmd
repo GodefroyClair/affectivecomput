@@ -25,7 +25,7 @@ require(knitr)
 require(plyr)
 require(ggplot2)
 require(reshape2)
-require(scatterplot3d)
+#require(scatterplot3d)
 require(grDevices)
 require(kohonen)
 require(ggdendro)
@@ -34,13 +34,13 @@ require(grid)
 
 ```{r, echo = F, cache=F}
 
-mac.gd.path <- "/Users/godot/Google Drive"
-hp.gd.path <- "C:/Users/Godefroy/Google Drive"
+mac.gd.path <- "/Users/godot/githubRepos/"
+hp.gd.path <- "C:/Users/Godefroy/"
 
 
 if(Sys.info()['nodename']=="THIM")gd.path <- hp.gd.path else
   gd.path <- mac.gd.path
-data.path <- paste(gd.path,"ProjetPsychoGame/data",sep = "/")
+data.path <- paste(gd.path,"affectiveComputing/data",sep = "/")
 ```
 
 ```{r, echo = F, cache=F}

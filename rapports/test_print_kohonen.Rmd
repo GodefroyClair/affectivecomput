@@ -1,0 +1,123 @@
+---
+title: "test"
+author: "Godefroy Clair"
+date: "16 septembre 2016"
+output:
+  pdf_document:
+    includes:
+      in_header: ../style/header.tex 
+    fig_caption: yes
+    latex_engine: xelatex
+    number_sections: yes
+    toc: yes
+    toc_depth: 3
+  html_document:
+    css: ../style/simple-report.style.css
+    number_sections: yes
+    toc: yes
+  word_document: default
+---
+
+
+```{r, include=FALSE}
+df_type <- "centered" #"scaled" or "not_modified"
+DEBUG <- F
+black_frame <- rgb(.0, .0, .0)
+no_frame <- rgb(1, 1, 1)
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(plyr)
+library(ggplot2)
+library(gtable)
+library(kohonen)
+library(tidyr)
+library(signal)
+library(dplyr)
+library(purrr)
+library(testthat)
+library(stringr)
+library(ggradar)
+library(purrr)
+library(reshape2)
+library(lubridate)
+library(data.table)
+#instal ggradar : devtools::install_github("ricardo-bion/ggradar", dependencies=TRUE)
+# configured to work on a Mac, change directory to Unix or Windows
+#download.file("https://dl.dropboxusercontent.com/u/2364714/airbnb_ttf_fonts/Circular Air-Light 3.46.45 PM.ttf", "/Library/Fonts/Circular Air-Light 3.46.45 PM.ttf", method="curl")
+#extrafont::font_import(pattern = 'Circular', prompt=FALSE)
+suppressPackageStartupMessages(library(dplyr))
+library(scales)
+theme_set(theme_bw(24))
+```
+
+#test 1
+
+
+
+```{r, echo = F, message = F, cache = F}
+load(verbose = T, file = "../data/som1.RDa")
+load(verbose = T, file = "../data/som2.RDa")
+load(verbose = T, file = "../data/som3.RDa")
+load(verbose = T, file = "../data/df_stat_scale_scale.RDa")
+load(verbose = T, file = "../data/df_stat_center_scale.RDa")
+load(verbose = T, file = "../data/df_stat_scaled.RDa")
+load(verbose = T, file = "../data/df_selec.RDa")
+#plot of the learning curve of kohonen maps (distance )
+#a changer
+#df_stat <- df_stat_scaled #df_stat_scaled ou df_stat_scale_scale
+if(df_type == "scaled") {
+  df_stat <- df_stat_scaled
+  som <- som1 #som1 ou som2
+} else if (df_type == "not_modif") {
+  df_stat <- df_stat_scale_scale
+  som <- som2 #som1 ou som2
+} else if (df_type == "centered") {
+  df_stat <- df_stat_scale_scale
+  som <- som3 #som1 ou som2 ou som3
+}
+```
+
+
+```{r, echo = F, message = F, cache = F, fig.height=5.5, fig.width=5.5}
+plot(som, type="changes", main="carte du progrès d'apprentissage")
+```
+
+La carte suivante nous indique le nombre de données captées par chaque neurone.
+
+```{r, echo = F, cache = F, fig.height=5.5, fig.width=5.5}
+plot(som, type="count", main= "carte de comptages des données captées")
+
+```
+
+Celle-ci nous indique la distance des données à chaque référent. Elle indique donc si les données sont proches entre elles (car un référent mesure pour chaque variable la moyenne des données qu'il a collectées)
+
+```{r quality_map,echo = F, cache = F, fig.height = 6.5, fig.width = 6.5, fig.cap ="carte de qualité"}
+#obtenir un dégradé de couleurs de bleu à rouge
+coolBlueHotRed <- function(n, alpha = 1) {rainbow(n, end=4/6, alpha=alpha)[n:1]}
+plot(som, type="quality", palette.name = coolBlueHotRed, main = "distance moyenne des données aux neurones")
+```
+
+### Quelques autres graphiques standards
+
+Les graphiques suivants sont des graphiques dit "heatmap" pour chaque variable : ils permettent de voir les zones où cette variable est plus élevée ou au contraire plus basse.
+
+```{r, echo = F, cache = F, fig.height=5.5, fig.width=5.5}
+#TODO : heatmap par variable
+plot(som, type = "property", property = som$codes[,1], main="heatmap de l'activité électrodermale", palette.name=coolBlueHotRed)
+```
+
+
+```{r, echo = F, cache = F, fig.height=5.5, fig.width=5.5}
+plot(som, type = "property", property = som$codes[,2], main="heatmap de temperature", palette.name=coolBlueHotRed)
+```
+
+```{r, echo = F, cache = F, fig.height=5.5, fig.width=5.5}
+plot(som, type = "property", property = som$codes[,3], main="heatmap de freq card", palette.name=coolBlueHotRed)
+```
+
+```{r, echo = F, cache = F, fig.height=5.5, fig.width=5.5}
+plot(som, type = "property", property = som$codes[,4], main="heatmap de respi nettoyée", palette.name=coolBlueHotRed)
+```

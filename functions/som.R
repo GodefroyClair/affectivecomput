@@ -145,16 +145,16 @@ if (DEBUG && PRINT) purrr::walk("AB", ~ spectre(get_expe(.)))
 
 
 plot_3_low_filter <- function(df, sample = 1:nrow(df)){
-    df$respi_clean_noise1 <- clean_high_freq(df$respiration,1/50)
-    df$respi_clean_noise2 <- clean_high_freq(df$respiration,1/5)
-    df$respi_clean_noise3 <- clean_high_freq(df$respiration,9/10)
-    
-    print(ggplot(df[sample,], aes(date, respiration)) +
-      geom_line(col="red") + 
-      geom_line(aes(y = respi_clean_noise1 - 3),col="green") +
-      geom_line(aes(y = respi_clean_noise2 - 6),col="blue") +
-      geom_line(aes(y = respi_clean_noise3 - 9),col="black")
-    )
+  df$respi_clean_noise1 <- clean_high_freq(df$respiration,1/50)
+  df$respi_clean_noise2 <- clean_high_freq(df$respiration,1/5)
+  df$respi_clean_noise3 <- clean_high_freq(df$respiration,9/10)
+  
+  print(ggplot(df[sample,], aes(date, respiration)) +
+          geom_line(col="red") + 
+          geom_line(aes(y = respi_clean_noise1 - 3),col="green") +
+          geom_line(aes(y = respi_clean_noise2 - 6),col="blue") +
+          geom_line(aes(y = respi_clean_noise3 - 9),col="black")
+  )
 }
 
 #insert df_all in high order function
@@ -189,37 +189,6 @@ if(DEBUG && PRINT) {
   df_all %>% filter(nom.experience == "AB") %>% ggplot(aes(x = date, y = trend)) + geom_line(col = "blue")
 }
 
-#=================== GARBAGE =====================#
-
-#OLD 
-#add_max_min_freq <- function(df) {
-#  ##DEBUG df <- data_AB
-#  df$loess <- loess(df$respi_clean_noise ~ as.numeric(df$date), degree=1,span=.1)$fitted
-#  df$min_max_sig <- min_max_signal(df$respi_clean, df$loess)
-#  df$freq_sig <- min_max_sig2freq(df$min_max_sig)
-#  df
-#}
-#add_max_min_per_period <- function(df) {
-#  #DEBUG 
-#  #df <- get_expe("AB")
-#  df$loess <- loess(df$respi_clean ~ as.numeric(df$date), degree=1,span=.1)$fitted
-#  above <- df$respi_clean >= df$loess
-#  period <- cumsum(c(0, diff(above) == 1))
-#  df$max_per_period <- stat_per_period(df$respi_clean, period)(max)
-#  df$min_per_period <- stat_per_period(df$respi_clean, period)(min)
-#  df
-#}
-#get_expe <- get_expe_base(df_all)
-
-##test
-#df_test <- add_max_min_per_period(get_expe("AB"))
-#df_test <- rbind(df_test, add_max_min_per_period(get_expe("AW")))
-#df_test2 <- purrr::map_df(list("AB","AW"), ~ add_max_min_per_period(get_expe(.)))
-#expect_true(all(df_test$max_per_period == df_test2$max_per_period))
-#
-#df_all <- purrr::map_df(list_exp, ~ add_max_min_per_period(get_expe(.)))
-#
-
 #========== ADD FREQUENCY STATS (max, min, mean...) ==============#
 #high order function to create a signal based on a stat and a loess
 add_stat_per_period <- function(stat) {
@@ -231,7 +200,7 @@ add_stat_per_period <- function(stat) {
     fun_name <- str_extract(deparse(stat), "(?<=\").*(?=\")")
     fun_name <- fun_name[!is.na(fun_name)]
     col_name <- paste(fun_name[1], "per_period", sep = "_")
- 
+    
     df[,col_name] <- stat_per_period(df$respi_clean_hl, period)(stat)
     df
   }
@@ -277,8 +246,8 @@ if(DEBUG){
 
 plot_loess <- function(df) {
   print(ggplot(df, aes(x = date, y = respi_clean_hl)) + geom_line(col = "red") +
-  geom_line(aes(y  = loess), col = "blue") +
-  ggtitle(paste("data", df$nom.experience[1])))
+          geom_line(aes(y  = loess), col = "blue") +
+          ggtitle(paste("data", df$nom.experience[1])))
 }
 
 get_expe <- get_expe_base(df_all)
@@ -321,40 +290,52 @@ list_expe_selec2 <- c("AB", "CLP", "CW", "DA", "DE", "PCo", "PCo2", "PCo3")
 #nom des variables sur lesquels nous allons travailler
 #on retire nom experience
 noms_var_stat <- c("activite.electrodermale","temperature","frequence.cardiaque",
-                    "nom.experience", "respi_clean_hl","trend", 
-                    "loess","max_per_period","min_per_period","period_duration")
+                   "nom.experience", "respi_clean_hl","trend", 
+                   "loess","max_per_period","min_per_period","period_duration")
 
 
-df_stat <- as.data.frame(df_selec[,noms_var_stat])
+df_stat <- data.frame(df_selec[,noms_var_stat])
 #2 scale : global or per individuals
 
-#scale the var by experiences (bug with dplyr ?? https://github.com/hadley/dplyr/issues/2049)
-df_stat_scaled_per_exp <- df_stat %>% group_by(nom.experience) %>% 
-  do(mutate(.,
-            nom.experience = nom.experience, activite.electrodermale = scale(activite.electrodermale),
-            temperature = scale(temperature),  frequence.cardiaque = scale(frequence.cardiaque),
-            respi_clean_hl = scale(respi_clean_hl), trend = scale(trend),
-            loess = scale(loess), max_per_period = scale(max_per_period),
-            min_per_period = scale(min_per_period), period_duration = scale(period_duration))
-     )
-#treat bug ??
-df_stat_scaled_per_exp <- as.data.frame(df_stat_scaled_per_exp)
+#scale the var by experiences 
+#!!bug with dplyr::group_by() + dplyr::mutate_each() + scale() : https://github.com/hadley/dplyr/issues/2049
+#need to create my own scale function
+my_scale <- function(x) c(scale(x))
+
+df_stat_scaled_per_exp <- df_stat %>% group_by(nom.experience) %>% mutate_each(funs(my_scale))
+#df_stat_scaled_per_exp <- data.frame(df_stat_scaled_per_exp[1:nrow(df_stat_scaled_per_exp),])
+
+df_stat_centered_per_exp <- df_stat %>% group_by(nom.experience) %>% mutate_each(funs(my_scale(., scale = F)))
+#treat bug
+df_stat_centered_per_exp <- as.data.frame(df_stat_centered_per_exp[1:nrow(df_stat_centered_per_exp),])
 
 #simple (general) scale
 df_stat_scaled <- df_stat %>% mutate_each(funs(scale), -c(nom.experience, loess)) 
 
 
-df_stat_scale_scale <- df_stat_scaled_per_exp %>% mutate_each(funs(round(scale(.),digits= 4)), -nom.experience) 
-df_stat_scale_scale <- as.data.frame(df_stat_scale_scale)
+df_stat_scale_scale <- df_stat_scaled_per_exp %>% mutate_each(funs(my_scale(.)), -nom.experience) 
+df_stat_scale_scale <- data.frame(df_stat_scale_scale)
 
+df_stat_centered_scale <- df_stat_centered_per_exp %>% mutate_each(funs(my_scale(., scale = F)), -nom.experience) 
+df_stat_centered_scale <- data.frame(df_stat_centered_scale)
 if(DEBUG) {
+  ## test solution 4 bug
   set.seed(7)
   df <- data.frame(x=10*runif(9), y=20*rnorm(9), group=rep(c("a","b","c"),3))
-  df
+  
+  #show the bug :
   df_2 <- df %>% dplyr::group_by(group) %>% dplyr::mutate_each(funs(scale))
-  df_2
-  str(df_2)
-  View(df_2)
+  expect_that(dim(df2[[2]]), equals(c(ncol(df),1))) #dim should be NULL !!
+  
+  #solution : use a fonction that coerse the result of scale to vector
+  my_scale_test <- function(x, ...) c(scale(x, ...))
+  df_3 <- df %>% dplyr::group_by(group) %>% dplyr::mutate_each(funs(my_scale_test))
+  expect_that(dim(df3[[2]]), equals(NULL)) #should be 
+  # old solution :
+  # df_2 <- data.frame(df_2[1:nrow(df_2),])
+  
+  df_4 <- df %>% dplyr::group_by(group) %>% dplyr::mutate_each(funs(my_scale_test(.,scale = F)))
+  expect_equal(df_4[df$group == "a",]$x, df$x[df$group == "a"] - mean(df$x[df$group == "a"]))
 }
 #df_test <- data.frame(A = c(8, 8, 10, 6, 12), B =  c(10, 10, 14, 7, 8), C = c("one","two","two","one","two"))
 #t1 <- df_test %>% group_by(C) %>% mutate_each(funs(scale)) 
@@ -366,10 +347,44 @@ if(DEBUG) {
 #######################
 ########ACP ###########
 #######################
+# PCA for respiration
+
+PCbiplot <- function(PC, x="PC1", y="PC2") {
+  # PC being a prcomp objecto
+  PC <- pca_respi
+  data <- data.frame(obsnames=1:length(PC$x), PC$x)
+  plot <- ggplot(data, aes(x=PC1, y=PC2)) + geom_text(alpha=.4, size=3, aes(label=obsnames))
+  plot <- plot + geom_hline(aes(0), size=.2) + geom_vline(aes(0), size=.2)
+  datapc <- data.frame(varnames=rownames(PC$rotation), PC$rotation)
+  mult <- min(
+    (max(data[,"PC2"]) - min(data[,"PC2"])/(max(datapc[,"PC2"])-min(datapc[,"PC2"]))),
+    (max(data[,"PC1"]) - min(data[,"PC1"])/(max(datapc[,"PC1"])-min(datapc[,"PC1"])))
+  )
+  datapc <- transform(datapc,
+                      v1 = .7 * mult * (get("PC1")),
+                      v2 = .7 * mult * (get("PC2"))
+  )
+  plot <- 
+    
+  plot + coord_equal() + 
+    geom_text(data=datapc, aes(x=datapc$v1, y=datapc$v2, label=varnames), size = 5, vjust=1, color="red")
+  plot <- plot + geom_segment(data=datapc, aes(x=0, y=0, xend=v1, yend=v2), arrow=arrow(length=unit(0.2,"cm")), alpha=0.75, color="red")
+  plot
+}
+PCbiplot(pca_respi)
+
+
+df_respi_pca <- df_stat_scale_scale %>% select(-nom.experience, -activite.electrodermale, -frequence.cardiaque, -temperature)
+pca_respi <- prcomp(df_respi_pca, center = T, scale = T)
+str(pca_respi)
+plot(pca_respi, type = "l")
+biplot(pca_respi)
+
+# PCA for all variables
 colnames(df_stat_scale_scale)
 df_pca <- df_stat_scale_scale %>% select(-nom.experience, -loess)
 df_pca_AB_CW <-  df_stat_scale_scale  %>% as.data.table()  %>% 
-  dplyr::filter(nom.experience == "AB", )  %>% select(-nom.experience, -loess)
+  dplyr::filter(nom.experience == "AB", nom.experience = "CW" )  %>% select(-nom.experience, -loess)
 
 pca_AB_CW <- prcomp(df_pca_AB_CW, center = T, scale =T)
 str(pca_AB_CW)
@@ -395,15 +410,16 @@ install_github("ggbiplot", "vqv")
 ggscreplot(pca, type = c("pev", "cev"))
 
 ggbiplot(pca, obs.scale = 1, var.scale = 1, 
-              ellipse = TRUE, 
-              circle = TRUE) +
+         ellipse = TRUE, 
+         circle = TRUE) +
   scale_color_discrete(name = '') + 
   theme(legend.direction = 'horizontal', 
-               legend.position = 'top')
+        legend.position = 'top')
 ggbiplot(pca, obs.scale = 1, var.scale = 1,
          groups = df_stat_scale_scale$nom.experience, ellipse = TRUE, circle = TRUE) +
   scale_color_discrete(name = '') +
   theme(legend.direction = 'horizontal', legend.position = 'top')
+
 #=======================================#
 ############### K-MEANS #################
 #=======================================#
@@ -421,8 +437,8 @@ set.seed(77)
 ratio_ss <- rep(0,10)
 for (k in 20:30) {
   
-# Apply k-means to school_result: school_km
-km <- kmeans(df_stat, nstart = 40, centers = k)
+  # Apply k-means to school_result: school_km
+  km <- kmeans(df_stat, nstart = 40, centers = k)
   
   # Save the ratio between of WSS to TSS in kth element of ratio_ss
   ratio_ss[k] <- km$tot.withinss /  km$totss
@@ -442,8 +458,9 @@ plot( ratio_ss, type = "b", xlab = "k")
 #rlen permet de préciser le nombre d'itérations
 #temp à mettre au plus haut
 set.seed(77)
-df_SOM_scale_scale <-  df_stat_scaled_per_exp %>% dplyr::select(-nom.experience, -loess) %>% scale() %>% data.frame()
-df_SOM_scaled <-  df_stat_scaled %>% dplyr::select(-nom.experience, -loess) %>% scale() %>% data.frame()
+df_SOM_scale_scale <-  df_stat_scaled_per_exp %>% dplyr::select(-nom.experience, -loess)
+df_SOM_scaled <-  df_stat_scaled %>% dplyr::select(-nom.experience, -loess)
+df_SOM_center_scale <-  df_stat_centered_scale %>% dplyr::select(-nom.experience, -loess)
 
 i <- 1:60
 x <- 1:120
@@ -453,11 +470,14 @@ nhbrdist <- unit.distances(som1$grid, som1$toroidal) #
 som1 <- kohonen::som(data = as.matrix(df_SOM_scale_scale), grid = somgrid(30, 30, "hexagonal"),
                      rlen=300, alpha =c(2,0.0001), radius = quantile(nhbrdist, 0.9) * c(1, -1))
 #som2 <- kohonen::som(data = as.matrix(df_SOM_scaled), grid = somgrid(30, 30, "hexagonal"), rlen=180, alpha =c(2,0.0001))
+som3 <- kohonen::som(data = as.matrix(df_SOM_center_scale), grid = somgrid(30, 30, "hexagonal"), rlen=180, alpha =c(2,0.0001))
 
 ##Save main data for graphs (for markdown report)
 save(som1,file = "./data/som1.RDa")
 #save(som2,file = "./data/som2.RDa")
+save(som3,file = "./data/som3.RDa")
 save(df_stat_scale_scale, file = "./data/df_stat_scale_scale.RDa")
+save(df_stat_scale_scale, file = "./data/df_stat_center_scale.RDa")
 save(df_stat_scaled, file = "./data/df_stat_scaled.RDa")
 save(df_selec, file = "./data/df_selec.RDa")
 
@@ -535,13 +555,13 @@ base_titre <- "Carte d'identité des référents"
 
 #theme that are used for the multiradar plot
 radar_theme <-  theme(panel.margin.x = unit(0, "lines"), panel.margin.y = unit(0, "lines"), panel.border = element_rect(colour = rgb(1.0, 0, 0, 0.5), fill=NA, size=1),
-        axis.title.x=element_blank(), axis.text.x=element_blank(), axis.ticks.x=element_blank(),
-        axis.title.y=element_blank(), axis.text.y=element_blank(), axis.ticks.y=element_blank(),
-        strip.background = element_blank(), strip.text.x = element_blank(),
-        legend.title = element_text(colour="black", size=5,  face="bold"),
-        legend.text = element_text(colour="black", size=5),
-        legend.key = element_rect(size = 1),
-        title = element_text(color = "blue", size =6, face = "bold"))
+                      axis.title.x=element_blank(), axis.text.x=element_blank(), axis.ticks.x=element_blank(),
+                      axis.title.y=element_blank(), axis.text.y=element_blank(), axis.ticks.y=element_blank(),
+                      strip.background = element_blank(), strip.text.x = element_blank(),
+                      legend.title = element_text(colour="black", size=5,  face="bold"),
+                      legend.text = element_text(colour="black", size=5),
+                      legend.key = element_rect(size = 1),
+                      title = element_text(color = "blue", size =6, face = "bold"))
 
 #length
 ggplot(melted_radar, aes(x = variable, y = value, fill = variable)) %+% 
@@ -659,15 +679,15 @@ gathered_expe_par_n <- expe_par_neurone %>% gather(variable, value, -id_neurone)
   group_by(id_neurone) %>% mutate(cumsum = cumsum(value))
 
 gathered_expe_par_n %>% filter(id_neurone == 15)
-  
+
 expe_neuro_theme <-  theme(panel.margin.x = unit(0, "lines"), panel.margin.y = unit(0, "lines"), panel.border = element_rect(colour = rgb(1.0, 0, 0, 0.5), fill=NA, size=1),
-        axis.text.x=element_text(size = 6), 
-        axis.title.y=element_blank(), axis.text.y=element_text(size = 8), axis.ticks.y=element_blank(),
-        strip.background = element_blank(), strip.text.x = element_blank(),
-        legend.title = element_text(colour="black", size = 5,  face="bold"),
-        legend.text = element_text(colour="black", size = 5),
-        legend.key = element_rect(size = 1),
-        title = element_text(color = "blue", size = 6, face = "bold"))
+                           axis.text.x=element_text(size = 6), 
+                           axis.title.y=element_blank(), axis.text.y=element_text(size = 8), axis.ticks.y=element_blank(),
+                           strip.background = element_blank(), strip.text.x = element_blank(),
+                           legend.title = element_text(colour="black", size = 5,  face="bold"),
+                           legend.text = element_text(colour="black", size = 5),
+                           legend.key = element_rect(size = 1),
+                           title = element_text(color = "blue", size = 6, face = "bold"))
 
 expe_neuro_theme2 <- theme(axis.text.y = element_text(size = 3, margin = margin(0, 0, 0, 0)))
 
@@ -695,7 +715,7 @@ ggplot(gathered_expe_par_n, aes(x = variable, y = value, fill = variable)) %+%
 ### Carte des temporalités captées par neurones
 #traiter à part les données pour les expériences "2" (ie PCo2, PCo3)
 
-  
+
 #on prend le df général
 df_sec <- as.data.table(df_selec)
 #on crée une var de facteur par secondes (arbitraire ??)
@@ -771,7 +791,7 @@ graph_path_neurons <- function(df) {
   #colors & theme
   cbPalette2 <- c("#F00000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
   simple_theme <- theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
-                 panel.background = element_blank(), axis.line = element_line(colour = "black"))
+                        panel.background = element_blank(), axis.line = element_line(colour = "black"))
   
   gg <-  ggplot(df, aes(x = x, y = y)) %+%
     facet_wrap(facets =  ~ nom_expe) %+% 
