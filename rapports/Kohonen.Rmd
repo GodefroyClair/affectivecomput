@@ -24,6 +24,7 @@ df_type <- "centered" #"scaled" or "not_modified"
 DEBUG <- F
 black_frame <- rgb(.0, .0, .0)
 no_frame <- rgb(1, 1, 1)
+b_deb <- T
 b_rad <- T
 list.expe.selec <- c("AB", "CLP", "CW", "DA", "PCo", "PCo2", "PCo3", "DE")
 ```
@@ -114,7 +115,7 @@ Une difficulté est survenu du fait que l'apprentissage par défaut amené à un
 
 Finalement, on voit que l'on passe le coude, même s'il en reste un petit...
 
-```{r, echo =F, message = F, cache = T}
+```{r, echo =F, message = F, cache = F}
 load(verbose = T, file = "../data/som1.RDa")
 load(verbose = T, file = "../data/som2.RDa")
 load(verbose = T, file = "../data/som3.RDa")
@@ -138,20 +139,20 @@ if(df_type == "scaled") {
 ```
 
 
-```{r changes_map, echo =F, message = F, cache = T, fig.height=5.5, fig.width=5.5, fig.cap = "carte de l'apprentissage"}
+```{r changes_map, echo =F, message = F, cache = b_deb, fig.height=5.5, fig.width=5.5, fig.cap = "carte de l'apprentissage"}
 plot(som, type="changes", main="distance moy. des réf. aux données par itération")
 ```
 
 La carte suivante nous indique le nombre de données captées par chaque neurone.
 
-```{r count_map, echo =F, cache = T, fig.height=5.5, fig.width=5.5, fig.cap = "carte de comptage des données par référents"}
+```{r count_map, echo =F, cache = b_deb, fig.height=5.5, fig.width=5.5, fig.cap = "carte de comptage des données par référents"}
 plot(som, type="count", main= "nb de données captées à la fin de l'itération")
 
 ```
 
 Celle-ci nous indique la distance des données à chaque référent. Elle indique donc si les données sont proches entre elles (car un référent mesure pour chaque variable la moyenne des données qu'il a collectées)
 
-```{r quality_map, echo =F, cache = T, fig.height=5.5, fig.width=8.5, fig.cap = "carte de qualité"}
+```{r quality_map, echo =F, cache = b_deb, fig.height=5.5, fig.width=5.5, fig.cap = "carte de qualité"}
 #obtenir un dégradé de couleurs de bleu à rouge
 coolBlueHotRed <- function(n, alpha = 1) {rainbow(n, end=4/6, alpha=alpha)[n:1]}
 plot(som, type="quality", palette.name = coolBlueHotRed, main = "distance moyenne des données aux neurones")
@@ -162,38 +163,38 @@ plot(som, type="quality", palette.name = coolBlueHotRed, main = "distance moyenn
 
 Les graphiques suivants sont des graphiques dit "heatmap" pour chaque variable : ils permettent de voir les zones où cette variable est plus élevée ou au contraire plus basse.
 
-```{r hm_transpi, echo =F, cache = T, fig.height=5.5, fig.width=5.5, fig ="heatmap"}
+```{r hm_transpi, echo =F, cache = b_deb, fig.height=5.5, fig.width=5.5, fig ="heatmap"}
 #TODO : heatmap par variable
 plot(som, type = "property", property = som$codes[,1], main="activité életro-dermale", palette.name=coolBlueHotRed)
 ```
 
 
-```{r hm_temp, echo =F, cache = T, fig.height=5.5, fig.width=5.5, fig.cap = "heatmap"}
+```{r hm_temp, echo =F, cache = b_deb, fig.height=5.5, fig.width=5.5, fig.cap = "heatmap"}
 plot(som, type = "property", property = som$codes[,2], main="température", palette.name=coolBlueHotRed)
 ```
 
-```{r hm_freq_card, echo =F, cache = T, fig.height=5.5, fig.width=5.5, fig.cap = "heatmap"}
+```{r hm_freq_card, echo =F, cache = b_deb, fig.height=5.5, fig.width=5.5, fig.cap = "heatmap"}
 plot(som, type = "property", property = som$codes[,3], main="fréquence cardiaque", palette.name=coolBlueHotRed)
 ```
 
-```{r hm_respi, echo =F, cache = T, fig.height=5.5, fig.width=5.5, fig.cap = "heatmap"}
+```{r hm_respi, echo =F, cache = b_deb, fig.height=5.5, fig.width=5.5, fig.cap = "heatmap"}
 plot(som, type = "property", property = som$codes[,4], main="respiration \"nettoyée\"", palette.name=coolBlueHotRed)
 ```
 
-```{r hm_trend_resp, echo =F, cache = T, fig.height=5.5, fig.width=5.5, fig.cap = "heatmap"}
+```{r hm_trend_resp, echo =F, cache = b_deb, fig.height=5.5, fig.width=5.5, fig.cap = "heatmap"}
 plot(som, type = "property", property = som$codes[,5], main="trend de la respiration", palette.name=coolBlueHotRed)
 ```
 
 
-```{r hm_max_resp, echo =F, cache = T, fig.height=5.5, fig.width=5.5, fig.cap = "heatmap"}
+```{r hm_max_resp, echo =F, cache = b_deb, fig.height=5.5, fig.width=5.5, fig.cap = "heatmap"}
 plot(som, type = "property", property = som$codes[,6], main="max par periode respi", palette.name=coolBlueHotRed)
 ```
 
-```{r hm_min_resp, echo =F, cache = T, fig.height=5.5, fig.width=5.5, fig.cap = "heatmap"}
+```{r hm_min_resp, echo =F, cache = b_deb, fig.height=5.5, fig.width=5.5, fig.cap = "heatmap"}
 plot(som, type = "property", property = som$codes[,7], main="min par periode respi", palette.name=coolBlueHotRed)
 ```
 
-```{r hm_dur_resp, echo =F, cache = T, fig.height=5.5, fig.width=5.5, fig.cap = "heatmap"}
+```{r hm_dur_resp, echo =F, cache = b_deb, fig.height=5.5, fig.width=5.5, fig.cap = "heatmap"}
 plot(som, type = "property", property = som$codes[,8], main="duree periodes respi", palette.name=coolBlueHotRed)
 ```
 
@@ -209,7 +210,7 @@ Les graphiques multi-radars, multi-bar, etc. permettent d'observer les valeurs d
 \newgeometry{left = 0cm, right = 0cm, top = 1cm, bottom = 3cm}
 \newpage
 \blandscape
-```{r prep_graph_radar, echo =F, cache = b_rad, fig.height=8.5, fig.width=8.5}
+```{r prep_graph_radar, echo = F, cache = b_rad, fig.height=5.5, fig.width=5.5}
 #limit the nb of neurones we are working on to fasten the graph making process
 #nb_neur has to be 300 in the end
 nb_neur <- 900
@@ -222,8 +223,9 @@ df_codes <- data.frame(som$codes) %>% add_rownames(var = "id_neur")  %>%
 df_codes$id_neur <- as.numeric(df_codes$id_neur)
 
 #replace min_per_period by its opposite for coherence of graph
+max_min <- max(df_codes$min_per_period)
 df_codes <- df_codes %>% 
-  mutate(min_per_pd_opp = min_per_period) %>% 
+  mutate(min_per_pd_opp = max_min - min_per_period) %>% 
   select(id_neur, activite.electrodermale, temperature, frequence.cardiaque, respi_clean_hl, trend, max_per_period, min_per_pd_opp, period_duration)
 
 # to be able to use some of the ggplot::geom_XXX(), we need to untidy the data
@@ -278,16 +280,15 @@ ggplot(melted_radar, aes(x = variable, y = value, fill = variable)) %+%
 \newpage
 \blandscape
 
-```{r star_graph, echo =F, cache = b_rad, fig.height=8.5, fig.width=8.5,fig.cap="carte de l'identité des neurones", out.width="1\\paperwidth"}
+```{r star_graph, echo = F, cache = b_rad, fig.height=8.5, fig.width=10.5,fig.cap="carte de l'identité des neurones", out.width="1\\paperwidth"}
 #radar
 ggplot(melted_radar, aes(x = variable, y = value, col = variable)) %+% 
   facet_wrap( ~ id_neur, ncol = 30)  %+% 
-  #geom_bar(stat="identity",position="dodge",width=.2) %+%
   geom_segment(aes(xend = variable, yend = 0), size = .2) %+%
   geom_point(size = .05) %+%
-  ylim(0,1) %+%
+  #ylim(0,1) %+%
   coord_polar(start = 0)  %+%
-  #geom_text(aes(x = 1.5, y = 1, label = lab_rep), colour="black", size = 1, inherit.aes=F) %+%
+  geom_text(aes(x = 1.5, y = 1, label = lab_rep), colour="black", size = 1, inherit.aes=F) %+%
   radar_theme %+%
   ggtitle(paste(base_titre, "(étoile)"))
 
@@ -310,6 +311,7 @@ ggplot(test, aes(x = var_id, y = value, group = 1)) %+%
   geom_polygon(fill = NA, col = "black") %+%
   geom_curve(aes(xend = lead(test$var_id, default = test$var_id[1]), yend = lead(test$value, default = test$value[1])), curvature = 0, color = "green") %+%
   coord_polar(start = -pi / nrow(test)) %+%
+  geom_text(aes(x = 1.5, y = 1, label = lab_rep), colour="black", size = 1, inherit.aes=F) %+%
   #theme(panel.grid.minor=element_blank()) %+%
   #radar_theme %+%
   ggtitle(paste(base_titre, "(radar)"))
@@ -375,7 +377,7 @@ Les graphs suivantes nous permettent de représenter les expériences auxquelles
 \newgeometry{left=5cm, right=0cm,bottom=3cm}
 \newpage
 
-```{r, echo =F, cache = T}
+```{r, echo =F, cache = F}
 #==========================================#
 ## Carte des données captées par neurones ##
 #==========================================#
@@ -425,7 +427,7 @@ expe_par_neurone <- expe_par_neurone %>% arrange(id_neurone)
 
 Nous commencons par associer chaque neurone à une couleur en fonction de l'expérience "majoritaire" (celle qui a le plus données captées par le référent)
 
-```{r expe_maj, echo =F, cache = T}
+```{r expe_maj, echo =F, cache = F}
 ##nom de l'experience la plus représentée par neurones
 expe_major_par_neurone <- as.factor(colnames(expe_par_neurone[-1])[max.col(expe_par_neurone[-1])])
 #put NA in line of neurone empty
@@ -436,9 +438,27 @@ expe_major_par_neurone[rowSums(expe_par_neurone)==0]<-NA
 #representation graphique de l'expérience majoritaire par neurones :
 plot(som, type = "property", property = as.numeric(expe_major_par_neurone), main="",  heatkey =F,palette.name=coolBlueHotRed)
 text(x=som$grid$pts[,1],y=som$grid$pts[,2],labels=expe_major_par_neurone,cex = .5,font=2)
+
+if(DEBUG){
+df_grid <- as.data.frame(som$grid$pts)
+df_grid$expe_maj <- expe_major_par_neurone
+#Graphique à réaliser avec ggplot...
+ggplot(df_grid, aes(x = x, y = y, col = expe_maj)) %+%
+  geom_point(aes(fill = expe_maj), size = 6, shape = 23) %+%
+  geom_text(aes(label = expe_maj), size = 2, col = "black") 
+
+  df_test <- data_frame(x = 1:10, y = rep(1,10))
+  ggplot(df_test, aes(x,y, colour = runif(10),fill = x)) + stat_binhex(binwidth = c(1,1)) +
+    ylim(c(0,10)) +
+    xlim(c(0,10))
+  
+  d <- ggplot(diamonds, aes(carat, price))
+  d + geom_hex()
+
+}
+
 ```
 
-Graphique à réaliser avec ggplot...
 
 \restoregeometry
 
@@ -446,11 +466,8 @@ La limite du précédent graphique est que l'on ne peut pas observer si plusieur
 
 Le premier graphique nous indique pour chaque neurone le nombre de données captées pour chaque expérience. Chaque bâton indique le nombre total de données captées et chaque partie de bâton de couleur différente indique le nombre de données correspondant à une expérience (à chaque couleur est associée une expérience comme l'indique la légende.)
 
-\newgeometry{left=0cm, right=0cm,bottom=3cm}
-\newpage
-\blandscape
 
-```{r, echo =F, cache = T, fig.height=8.5, fig.width=8.5,fig.cap="carte des expériences par neurone ", out.width="1\\paperwidth"}
+```{r, echo =F, cache = F}
 ## Graph des répartitions entre expériences par neurones
 nb_neur <- 900
 nb_expe <- 8
@@ -480,6 +497,13 @@ expe_neuro_theme <-  theme(panel.margin.x = unit(0, "lines"), panel.margin.y = u
         title = element_text(color = "blue", size = 6, face = "bold"))
 
 expe_neuro_theme2 <- theme(axis.text.y = element_text(size = 3, margin = margin(0, 0, 0, 0)))
+```
+
+\newgeometry{left=0cm, right=0cm,bottom=3cm}
+\newpage
+\blandscape
+
+```{r, echo =F, cache = F, fig.height=8.5, fig.width=8.5,fig.cap="carte des expériences par neurone ", out.width="1\\paperwidth"}
 
 ggplot(gathered_expe_par_n, aes(x = as.factor(id_neurone), y = value, fill = factor(variable))) %+% 
   geom_bar(stat = "identity") %+%
@@ -497,7 +521,7 @@ Cette carte est similaire à la précédente mais la hauteur de chaque bâton es
 \newgeometry{left=0cm, right=0cm,bottom=3cm}
 \newpage
 \blandscape
-```{r, echo =F, cache = T, fig.height=8.5, fig.width=10.5,fig.cap="carte de la répartition des expériences par neurone", out.width="1\\paperwidth"}
+```{r, echo =F, cache = F, fig.height=8.5, fig.width=10.5,fig.cap="carte de la répartition des expériences par neurone", out.width="1\\paperwidth"}
 ggplot(gathered_expe_par_n, aes(x = id_neurone, y = value, fill = factor(variable))) %+% 
   geom_bar(stat = "identity", position = "fill") %+%
   #geom_text(aes(y = cumsum - 15, label = value), colour = "black") %+%
@@ -511,7 +535,7 @@ ggplot(gathered_expe_par_n, aes(x = id_neurone, y = value, fill = factor(variabl
 \newgeometry{left=0cm, right=0cm,bottom=3cm}
 \newpage
 \blandscape
-```{r, echo =F, cache = T, fig.height=8.5, fig.width=8.5,fig.cap="carte des données par expérience", out.width="1\\paperwidth"}
+```{r, echo =F, cache = F, fig.height=8.5, fig.width=8.5,fig.cap="carte des données par expérience", out.width="1\\paperwidth"}
 expe_neuro_theme3 <-  theme(panel.margin.x = unit(0, "lines"), 
                             panel.margin.y = unit(0, "lines"), 
                             panel.border = element_rect(colour = no_frame, fill=NA, size=0),
@@ -542,15 +566,9 @@ ggplot(gathered_expe_par_n, aes(x = variable, y = value, fill = variable)) %+%
 \elandscape
 \restoregeometry
 
-##Carte des temporalités captées par neurones
+## Exploration de la répartion entre individus par référent
 
-Une dimension importante qui n'apparaît pas dans les cartes est le temps. Nous avons à faire avec des séries temporelles pour chaque variable et il est intéressant de mettre en relation l'évolution
-
-\newgeometry{left=0cm, right=0cm,bottom=3cm}
-\newpage
-\blandscape
-
-```{r, echo =F, cache = T, fig.height=8.5, fig.width=8.5,fig.cap="carte des neurones dans leur plan", out.width="1\\paperwidth"}
+```{r, echo =F, cache = F}
 #on prend le df général
 df_sec <- as.data.table(df_selec)
 #on crée une var de facteur par secondes (arbitraire ??)
@@ -597,13 +615,11 @@ new_expe <- dt_path_neur$nom_expe != lag(dt_path_neur$nom_expe)
 dt_path_neur$xend <- lag(dt_path_neur$x, default = dt_path_neur$x[1])
 dt_path_neur$yend <- lag(dt_path_neur$y, default = dt_path_neur$y[1])
 ```
-\elandscape
-\restoregeometry
 
 \newgeometry{left=0cm, right=0cm,bottom=3cm}
 \newpage
 \blandscape
-```{r, echo =F, cache = T, fig.height=8.5, fig.width=8.5,fig.cap="carte des neurones dans leur plan", out.width="1\\paperwidth"}
+```{r, echo =F, cache = F, fig.height=8.5, fig.width=8.5,fig.cap="carte des neurones dans leur plan", out.width="1\\paperwidth"}
 #new graph of the neurones
 ggplot(dt_neur_coord, aes(x = x, y = y)) + geom_point( col = "blue", shape = 21)
 ```
@@ -613,7 +629,7 @@ ggplot(dt_neur_coord, aes(x = x, y = y)) + geom_point( col = "blue", shape = 21)
 \newgeometry{left=0cm, right=0cm,bottom=3cm}
 \newpage
 \blandscape
-```{r neur_exp_size, echo =F, cache = T, fig.height=8.5, fig.width=8.5,fig.cap="carte des neurones en fonction du nombre de données captées par expérience", out.width="1\\paperwidth"}
+```{r neur_exp_size, echo =F, cache = F, fig.height=8.5, fig.width=8.5,fig.cap="carte des neurones en fonction du nombre de données captées par expérience", out.width="1\\paperwidth"}
 dt_path_neur_ord <- dt_path_neur %>% dplyr::arrange(desc(nb_data))
 ggplot(dt_path_neur_ord, aes(x = x, y = y)) %+% 
   geom_point(aes(col = nom_expe, size = nb_data), alpha = 0.5) 
@@ -625,7 +641,7 @@ ggplot(dt_path_neur_ord, aes(x = x, y = y)) %+%
 \newgeometry{left=0cm, right=0cm,bottom=3cm}
 \newpage
 \blandscape
-```{r neur_exp_jit, echo =F, cache = T, fig.height=8.5, fig.width=8.5,fig.cap="carte des neurones par expérience avec \"jitter\"", out.width="1\\paperwidth"}
+```{r neur_exp_jit, echo =F, cache = F, fig.height=8.5, fig.width=8.5,fig.cap="carte des neurones par expérience avec \"jitter\"", out.width="1\\paperwidth"}
 #graph with neurones color given according to the experience attached to it (add a little jitter to help with overlap)
 ggplot(dt_path_neur_ord, aes(x = x, y = y)) %+% geom_jitter(aes(col = nom_expe), width = 0.5, height = 0.5, alpha = 0.4) 
 ```
@@ -635,23 +651,30 @@ ggplot(dt_path_neur_ord, aes(x = x, y = y)) %+% geom_jitter(aes(col = nom_expe),
 \newgeometry{left=0cm, right=0cm,bottom=3cm}
 \newpage
 \blandscape
-```{r neur_exp_jit_ord, echo =F, cache = T, fig.height=8.5, fig.width=8.5,fig.cap="carte des neurones par expérience avec \"jitter\" et taille", out.width="1\\paperwidth"}
+```{r neur_exp_jit_ord, echo =F, cache = F, fig.height=8.5, fig.width=8.5,fig.cap="carte des neurones par expérience avec \"jitter\" et taille", out.width="1\\paperwidth"}
 ggplot(dt_path_neur_ord, aes(x = x, y = y, size = nb_data)) %+% geom_jitter(aes(col = nom_expe), width = 0.5, height = 0.5, alpha = 0.4) 
 ```
 \elandscape
 \restoregeometry
 
+##Carte des temporalités captées par neurones
+
+Une dimension importante qui n'apparaît pas dans les cartes est le temps. Nous avons à faire avec des séries temporelles pour chaque variable et il est intéressant de mettre en relation l'évolution
+
+
 \newgeometry{left=0cm, right=0cm,bottom=3cm}
 \newpage
 \blandscape
-```{r, echo =F, cache = T, fig.height=8.5, fig.width=8.5,fig.cap="carte du déplacement dans les neurones pour l'expérience AB", out.width="1\\paperwidth"}
-test_AB <- dt_path_neur %>% filter(nom_expe == "AB") %>% dplyr::mutate(elapsed_time = cumsum(nb_data)) %>% data.table
-
-ggplot(test_AB, aes(x = x, y = y)) %+% 
+```{r, echo =F, cache = F, fig.height=8.5, fig.width=8.5,fig.cap="carte du déplacement dans les neurones pour l'expérience AB", out.width="1\\paperwidth"}
+if (DEBUG) {
+  test_AB <- dt_path_neur %>% filter(nom_expe == "AB") %>% 
+    dplyr::mutate(elapsed_time = cumsum(nb_data)) %>% data.table
+  ggplot(test_AB, aes(x = x, y = y)) %+% 
   geom_point(col = "darkgrey")  %+%
-  geom_segment(aes(xend = xend, yend = yend, col = elapsed_time), alpha = .5, arrow = arrow(length = unit(0.02, "npc"))) %+%
+  geom_segment(aes(xend = xend, yend = yend, col = elapsed_time), 
+               alpha = .5, arrow = arrow(length = unit(0.02, "npc"))) %+%
   scale_color_gradient2(low = "blue", high = "red")
-
+}
 ```
 \elandscape
 \restoregeometry
@@ -659,7 +682,7 @@ ggplot(test_AB, aes(x = x, y = y)) %+%
 \newgeometry{left=0cm, right=0cm,bottom=3cm}
 \newpage
 \blandscape
-```{r, echo =F, cache = T, fig.height=8.5, fig.width=8.5,fig.cap="carte du déplacement dans les neurones pour l'expérience AB", out.width="1\\paperwidth"}
+```{r, echo =F, cache = F, fig.height=8.5, fig.width=8.5,fig.cap="carte du déplacement dans les neurones pour l'expérience AB", out.width="1\\paperwidth"}
 #fonction to print path for one expe in neurones graph
 reseau_par_exp <- function(nom_exp) {
   
@@ -667,11 +690,13 @@ dt_exp <- dt_path_neur %>% filter(nom_expe == nom_exp) %>% dplyr::mutate(elapsed
 
 gg <- ggplot(dt_exp, aes(x = x, y = y)) %+% 
   geom_point(col = "darkgrey")  %+%
-  geom_segment(aes(xend = xend, yend = yend, col = elapsed_time), alpha = .5, arrow = arrow(length = unit(0.02, "npc"))) %+%
-  scale_color_gradient2(low = "blue", high = "red") %+%
+  geom_segment(aes(xend = xend, yend = yend, col = as.numeric(elapsed_time)), alpha = .5, arrow = arrow(length = unit(0.02, "npc"))) %+%
+  scale_colour_gradientn(colours=c("red", "blue"))   %+%
+  #scale_color_gradient2(mid = "blue", high = "red") %+%
   ggtitle(paste("graph de l'experience", nom_exp))
 print(gg)
 }
+#graph tempo par neurone
 purrr::walk(list.expe.selec, reseau_par_exp)
 
 ```
@@ -680,7 +705,7 @@ purrr::walk(list.expe.selec, reseau_par_exp)
 \newgeometry{left=0cm, right=0cm,bottom=3cm}
 \newpage
 \blandscape
-```{r, echo =F, cache = T, fig.height=8.5, fig.width=8.5,fig.cap="carte des référents par expérience", out.width="1\\paperwidth"}
+```{r, echo =F, cache = F, fig.height=8.5, fig.width=8.5,fig.cap="carte des référents par expérience", out.width="1\\paperwidth"}
 dt_path_neur <- dt_path_neur %>% group_by(nom_expe) %>% mutate(elapsed_time = cumsum(nb_data)) %>% data.table() 
 
 cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
@@ -698,7 +723,7 @@ ggplot(dt_path_neur, aes(x = x, y = y)) %+%
 \newpage
 \blandscape
 
-```{r, echo=F, cache = T, fig.height=8.5, fig.width=8.5, out.width="1\\paperwidth"}
+```{r, echo=F, cache = F, fig.height=8.5, fig.width=8.5, out.width="1\\paperwidth"}
 
 graph_path_neurons <- function(df) {
   #colors & theme
@@ -709,7 +734,8 @@ graph_path_neurons <- function(df) {
   gg <-  ggplot(df, aes(x = x, y = y)) %+%
     facet_wrap(facets =  ~ nom_expe) %+% 
     geom_segment(aes(xend = xend, yend = yend, col = elapsed_time), alpha = .5, arrow = arrow(length = unit(0.05, "npc"))) %+% 
-    scale_color_gradient2(low = "blue", high = "red") %+%
+    #scale_color_gradient2(low = "blue", high = "red") %+%
+    scale_colour_gradientn(colours=c("red", "blue"))   %+%
     geom_point(aes(fill = nom_expe, size = nb_data), shape = 21) %+% 
     scale_fill_manual(values = cbPalette2) %+%
     simple_theme %+%
@@ -727,7 +753,7 @@ graph_path_neurons(dt_path_short)
 \newpage
 \blandscape
 
-```{r, echo=F, cache = T, fig.height=8.5, fig.width=8.5, out.width="1\\paperwidth"}
+```{r, echo=F, cache = F, fig.height=8.5, fig.width=8.5, out.width="1\\paperwidth"}
 
 dt_path_short2 <- dt_path_neur %>% filter(elapsed_time >= 10000 & elapsed_time < 20000)
 graph_path_neurons(dt_path_short2)
@@ -738,7 +764,7 @@ graph_path_neurons(dt_path_short2)
 \newgeometry{left=0cm, right=0cm,bottom=3cm}
 \newpage
 \blandscape
-```{r, echo=F, cache = T, fig.height=8.5, fig.width=8.5, out.width="1\\paperwidth"}
+```{r, echo=F, cache = F, fig.height=8.5, fig.width=8.5, out.width="1\\paperwidth"}
 
 dt_path_short3 <- dt_path_neur %>% filter(elapsed_time >= 20000 & elapsed_time < 30000)
 graph_path_neurons(dt_path_short3)
@@ -751,7 +777,7 @@ graph_path_neurons(dt_path_short3)
 \newpage
 \blandscape
 
-```{r, echo=F, cache = T, fig.height=8.5, fig.width=8.5, out.width="1\\paperwidth"}
+```{r, echo=F, cache = F, fig.height=8.5, fig.width=8.5, out.width="1\\paperwidth"}
 dt_path_short4 <- dt_path_neur %>% filter(elapsed_time >= 30000 & elapsed_time < 40000)
 graph_path_neurons(dt_path_short4)
 ```

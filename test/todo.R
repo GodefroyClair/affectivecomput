@@ -4,7 +4,12 @@ my_scale <- function(x) c(scale(x))
 set.seed(7)
 df <- data.frame(x=10*runif(9), y=20*rnorm(9), group=rep(c("a","b","c"),3))
 df2 <- df %>% group_by(group) %>% mutate_each(funs(scale))
+df3 <- df %>% group_by(group) %>% mutate_each(funs(my_scale))
+dim(df2)
+dim(df3)
+View(df2  )
 df2[[1]]
+df3[[1]]
 
 #Moi
 ##problème des graphes pour la représentation des hexagones

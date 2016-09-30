@@ -1,3 +1,4 @@
+DEBUG <- FALSE
 
 library(knitr)
 library(plyr)
@@ -14,44 +15,49 @@ library(signal)
 library(dplyr)
 theme_set(theme_bw(24))
 
-source("../general-functions/dplyr-functions.R")
-source("../general-functions/ggplot-functions.R")
-source("../general-functions/load-functions.R")
-source("../general-functions/clean-filters-functions.R")
-
-mac.gd.path <- "/Users/godot/githubRepos/"
-hp.gd.path <- "C:/Users/Godefroy/githubRepos/"
+############################################################
+#######################LOAD & PREP #########################
+############################################################
 
 
-if(Sys.info()['nodename']=="THIM")gd.path <- hp.gd.path else
-  gd.path <- mac.gd.path
-data.path <- paste(gd.path,"affectiveComputing/data/",sep = "/")
+source("../RGeneralFunctions/dplyr-functions.R")
+source("../RGeneralFunctions/load-functions.R")
+source("../RGeneralFunctions/cleaning-functions.R")
+source("../RGeneralFunctions/ggplot-functions.R")
+source("../RGeneralFunctions/clean-filters-functions.R")
+
+mac_gd_path <- "/Users/godot/githubRepos/"
+hp_gd_path <- "C:/Users/Godefroy/githubRepos/"
+
+
+if(Sys.info()['nodename']=="THIM")gd_path <- hp_gd_path else
+  gd_path <- mac_gd_path
+data_path <- paste(gd_path,"affectiveComputing/data/",sep = "/")
 
 
 #en argument : la liste des noms des fichiers csv à importer
-load.data <- function(exp){
-  filename <- paste(data.path,exp, "_SurEchantillonHF_header.csv", sep="")
-  # print(filename)
-  df.name <- paste("data.", exp, sep="")
+load_data <- function(exp){
+  #exp <- c("AB", "ST")
+  filename <- paste(data_path,exp, "_SurEchantillonHF_header.csv", sep="")
+  #print(filename)
+  #df_name <- paste("data_", exp, sep="")
   #permet de lancer la fonction load.file sur la liste passée en arguments
-  assign(df.name, load.file(filename), envir = .GlobalEnv)
+  #assign(df_name, load.file(filename), envir = .GlobalEnv)
+  df <- purrr::map_df(filename, load_file)
+  df$nom.experience <- factor(df$nom.experience)
+  df <- fun.calc.duree(df)
+  df
 }
 
-list.exp <- c("AB", "ST", "DA", "LM", "FS1", "PCo", "PCo2", "PCo3", "CW", 
+list_exp <- c("AB", "ST", "DA", "LM", "FS1", "PCo", "PCo2", "PCo3", "CW", 
               "HL", "CLP", "DE", "AW", "DA2", "DA3", "EZ1", "GC1", "IA")
 
-list.half.1 <- list.exp[1:floor(length(list.exp)/2)]
-list.half.2 <- list.exp[(floor(length(list.exp)/2)+1):length(list.exp)]
-#charge les dataset en mémoire
-list.df <- lapply(list.exp,load.data)
+#charge les datasets en mémoire
+df_all <- load_data(list_exp)
+testthat::expect_identical(sort(list_exp), levels(df_all$nom.experience))
 
-df.all <- do.call(rbind, list.df)
-df.all$nom.experience <- factor(df.all$nom.experience)
-
-df.all <- fun.calc.duree(df.all)
-
-nom.expe <- paste('data',list.exp[2],sep='.')
-list.exp.df <- sapply(list.exp,function(exp){paste('data',exp,sep='.')})
+list_half_1 <- list_exp[1:floor(length(list_exp)/2)]
+list_half_2 <- list_exp[(floor(length(list_exp)/2)+1):length(list_exp)]
 
 ###########################################################
 ###################FIN LOAD & PREPARE######################
@@ -61,11 +67,16 @@ list.exp.df <- sapply(list.exp,function(exp){paste('data',exp,sep='.')})
 ###################RESPIRATION  ##########################
 ###########################################################
 
-df.half.1 <- df.all[df.all$nom.experience %in% list.half.1,]
-df.half.2 <- df.all[df.all$nom.experience %in% list.half.2,]
+df_half_1 <- df_all[df_all$nom.experience %in% list_half_1,]
+df_half_2 <- df_all[df_all$nom.experience %in% list_half_2,]
 
-plot.evol.par.expe(df.half.1)
-plot.evol.par.expe(df.half.2)
+plot.evol.par.expe(df_half_1)
+plot.evol.par.expe(df_half_2)
+
+##A nettoyer à partir d'ici
+df.all <- df_all
+df.half.1 <- df_half_1
+df.half.2 <- df_half_2
 
 df.apprenti <- df.all[df.all$nom.experience %in% c("AB","ST","DA","FS1","CW","AW","EZ1","GC1","IA"),]
 df.apprenti.fort <- df.all[df.all$nom.experience %in% c("AB","AW","GC1","IA"),]
@@ -281,34 +292,7 @@ lapply(list.exp.df,function(exp){chrono.plot(exp,"respiration")})
 ###################FIN RESPIRATION #########################
 ############################################################
 
-
-              #######################
-              ######TEMPERATURE######
-              #######################
-
-plot.evol.par.expe(df.half.1, mesure = "temperature", titre = "température 1ere partie des expé")
-plot.evol.par.expe(df.half.2, mesure = "temperature", titre = "température 2nde moitié des expé")
-
-plot.evol.par.expe(df.half.1, mesure = "temperature", lim.bas=20, lim.haut = 35, titre = "température 1ere partie des expé")
-plot.evol.par.expe(df.half.2, mesure = "temperature", lim.bas=20, lim.haut = 35, titre = "température 2nde moitié des expé")
-
-df.DA <- df.all %>% filter(nom.experience == "DA", tps.ecoule < 50)
-plot.evol.par.expe(df.DA,titre="expérience DA, valeur proche de 0", mesure = "temperature")
-df.DA.clean <- df.all %>% filter(nom.experience == "DA", tps.ecoule < 50, temperature >8)
-plot.evol.par.expe(df.DA.clean,titre="expérience DA, valeurs inf à 9 nettoyées", mesure = "temperature")
-
-plot.evol.par.expe(df.all[df.all$tps.ecoule<10,], mesure = "temperature", titre="premiers instants")
-plot.evol.par.expe(df.half.1[df.half.1$tps.ecoule<5,], mesure = "temperature", titre="premiers instants")
-plot.evol.par.expe(df.half.2[df.half.2$tps.ecoule<5,], mesure = "temperature", titre="premiers instants")
-
-df.deb <- df.all %>% filter(tps.ecoule < 100)
-ggplot(df.deb,aes(x = as.numeric(tps.ecoule), y = temperature, col=nom.experience)) + geom_path(size=.5)
-ggplot(df.deb,aes(x = as.numeric(tps.ecoule), y = temperature, col=nom.experience)) + geom_path(size=.5) + ylim(c(20,35))
-
-df.deb.AB <- df.deb %>% filter(nom.experience == "AB")
-plot.evol.par.expe(df.deb.AB,titre="expérience AB", mesure = "temperature")
-df.deb <- df.all %>% filter(nom.experience == "AW", tps.ecoule < 75)
-plot.evol.par.expe(df.deb,titre="expérience AW", mesure = "temperature")
+#########A METTRE AILLEURS !!
 
 ######################
 ######BROUILLON#######
@@ -354,22 +338,4 @@ chrono.plot.direct(data.CW,"respiration",taille=10000,names="IA",offset=20000)
 
 
 lapply(list.exp.df,function(exp){chrono.plot(exp,"temperature")})
-
-#############################################################
-######################### ACTIVITE ELECTRO DERM #############
-############################################################# 
-lapply(list.exp.df,function(exp){chrono.plot(exp,"activite.electrodermale")})
-#AB:ok-highpeak!!, ST:no:flat, DA:ok, LM:ok-upsacle, FS1:ok-upscale, PCo:ok-upslope, PCo2:ok-peaks, PCo3:ok-peaks, CW:ok-debut,downslope?,HL:no-flat,CLP:ok-peaks, DE:ok-debut?, AW:ok, DA2:ok?-downslope, DA3:ok, EZ1:ok-peak?,GC1:ok?,IA:?
-
-#############################################################
-######################### FREQUENCE CARDIAQUE ###############
-############################################################# 
-lapply(list.exp.df,function(exp){chrono.plot(exp,"frequence.cardiaque")})
-#AB:ok, ST:ok,DA:ok-debut?, LM:ok, FS1:ok, PCo:ok, PCo2:ok, PCo3:ok, CW:ok,HL:ok,CLP:ok, DE:ok-début?, AW:ok-zeros, DA2:ok, DA3:ok, EZ1:ok,GC1:ok-zero,IA:ok
-
-
-
-#moyenne mobile
-
-filter(data.IA, c(1/3, 1/3, 1/3))
 

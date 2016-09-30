@@ -1,6 +1,12 @@
 ###########################################################
 ######################## CREATE SOM MAP ###################
 ###########################################################
+# to customize the color scheme, one can use the scale_fill_gradientn() function 
+# in combination with brewer.pal() from the RColorBrewer package. 
+# (RColorBrewer provides some nice color schemes that would be time-consuming to  reproduce manually. 
+# You will use mostly red colors here, but you can type display.brewer.all() in the R console to see the available color palattes.)
+
+
 
 library(devtools)
 library(plyr)
@@ -31,8 +37,10 @@ theme_set(theme_bw(24))
 ################################# MACRO ###################
 ################################# #########################
 
-DEBUG <- FALSE
-PRINT <- FALSE
+if (!exists("DEBUG")) DEBUG <- FALSE
+if (!exists("PRINT")) PRINT <- FALSE
+
+
 ############################################################
 #######################LOAD & PREP #########################
 ############################################################
@@ -44,241 +52,55 @@ source("../RGeneralFunctions/cleaning-functions.R")
 source("../RGeneralFunctions/ggplot-functions.R")
 source("../RGeneralFunctions/clean-filters-functions.R")
 
-mac_gd_path <- "/Users/godot/githubRepos/"
-hp_gd_path <- "C:/Users/Godefroy/githubRepos/"
+
+library(knitr)
+library(grid)
+library(ggplot2)
+library(gtable)
+library(reshape2)
+library(grDevices)
+library(signal)
+library(dplyr)
+theme_set(theme_bw(24))
+
+############################################################
+#######################LOAD & PREP #########################
+############################################################
 
 
-if(Sys.info()['nodename']=="THIM")gd_path <- hp_gd_path else
-  gd_path <- mac_gd_path
-data_path <- paste(gd_path,"affectiveComputing/data/",sep = "/")
+source("../RGeneralFunctions/ggplot-functions.R")
+source("./functions/load_df-all.R")
+source("../RGeneralFunctions/clean-filters-functions.R")
+source("../RGeneralFunctions/cleaning-functions.R")
+#for plot_ho
+source(file = "./functions/kohonen_graph.R")
 
-
-#en argument : la liste des noms des fichiers csv à importer
-load_data <- function(exp){
-  #exp <- c("AB", "ST")
-  filename <- paste(data_path,exp, "_SurEchantillonHF_header.csv", sep="")
-  #print(filename)
-  #df_name <- paste("data_", exp, sep="")
-  #permet de lancer la fonction load.file sur la liste passée en arguments
-  #assign(df_name, load.file(filename), envir = .GlobalEnv)
-  df <- purrr::map_df(filename, load_file)
-  df$nom.experience <- factor(df$nom.experience)
-  df <- fun.calc.duree(df)
-  df
-}
-
-list_exp <- c("AB", "ST", "DA", "LM", "FS1", "PCo", "PCo2", "PCo3", "CW", 
-              "HL", "CLP", "DE", "AW", "DA2", "DA3", "EZ1", "GC1", "IA")
-
-#charge les datasets en mémoire
-df_all <- load_data(list_exp)
-testthat::expect_identical(sort(list_exp), levels(df_all$nom.experience))
 
 ###########################################################
 ###################FIN LOAD & PREPARE######################
 ###########################################################
 
+df_all <- import_df_all()
+df_half_1 <- df_all[df_all$nom.experience %in% list_half_1,]
+df_half_2 <- df_all[df_all$nom.experience %in% list_half_2,]
+
+
+
+
 ###########################################################
-######################## CLEAN ############################
+###################   DATA VIZ    #########################
+###########################################################
+plot.evol.par.expe(df_half_1, mesure = "frequence.cardiaque")
+plot.evol.par.expe(df_half_2, mesure = "frequence.cardiaque")
+
+###########################################################
+################ ASSEMBLE CLEAN DATA ######################
 ###########################################################
 
-#données manquante
-#l.na <- which(is.na(data_PCo),arr.ind = T)
-#ncol.1 <- l.na[1,2]
-#ncol.2 <- l.na[2,2]
-#data_PCo[l.na[1],ncol.1] <- data_PCo[l.na[1]-1,ncol.1]
-#data_PCo[l.na[2],ncol.2] <- data_PCo[l.na[2]-1,ncol.2]
-#if(any(is.na(data_PCo)))stop("still na data...")
-
-#idem pour df_all
-l.na <- which(is.na(df_all), arr.ind =  T)
-ncol.1 <- l.na[1,2]
-ncol.2 <- l.na[2,2]
-df_all[l.na[1],ncol.1] <- df_all[l.na[1]-1,ncol.1]
-df_all[l.na[2],ncol.2] <- df_all[l.na[2]-1,ncol.2]
-#test
-if(any(is.na(df_all)))stop("still na data...")
-
-num.row<- which(df_all$temperature< 20)
-#remplacer cette valeur par la valeur de la ligne au-dessus
-df_all[num.row,"temperature"] <- df_all[num.row-1,"temperature"]
-
-#num.row<- which(data_DA$temperature <20)
-#data_DA[num.row,"temperature"] <-data_DA[num.row-1,"temperature"]
-
-num.row<- which(df_all$nom.experience == 'FS1' & df_all$respiration > 0 )
-#remplacer cette valeur par la valeur de la ligne au-dessus
-df_all[num.row,"respiration"] <- df_all[num.row-1,"respiration"]
-
-#obtenir l'index de la ligne de la donnée aberrant
-num.row<- which(df_all$nom.experience == 'FS1' & df_all$respiration < -18)
-#remplacer cette valeur par la valeur de la ligne au-dessus
-df_all[num.row,"respiration"] <- df_all[num.row-1,"respiration"]
-
-
-###################FIN CLEANING###################
-
-
-###################2eme PARTIE CLEANING###################
-
-#getters of experience in a data frame
-get_expe_base <- function(df){
-  get_expe <- function(nom.exp){
-    df %>% filter(nom.experience == nom.exp)
-  }
-}
-get_expe <- get_expe_base(df_all)
-list_exp <- levels(df_all$nom.experience) #redondant
-
-#####################################
-########### respiration #############
-#####################################
-
-#get the spectrum of each exp
-spectre <- function(df) {
-  #df <- df %>% filter(nom.experience == nom.exp)
-  spectre <- spectrum_analysis(df$respiration,df$date)
-  print(plot_spectrum(spectre, x_lim = c(0,4), rm_zero = T, df$nom.experience[1]))
-}
-if(PRINT) purrr::walk(list_exp, ~ spectre(get_expe(.)))
-if (DEBUG && PRINT) purrr::walk("AB", ~ spectre(get_expe(.)))
-
-
-plot_3_low_filter <- function(df, sample = 1:nrow(df)){
-  df$respi_clean_noise1 <- clean_high_freq(df$respiration,1/50)
-  df$respi_clean_noise2 <- clean_high_freq(df$respiration,1/5)
-  df$respi_clean_noise3 <- clean_high_freq(df$respiration,9/10)
-  
-  print(ggplot(df[sample,], aes(date, respiration)) +
-          geom_line(col="red") + 
-          geom_line(aes(y = respi_clean_noise1 - 3),col="green") +
-          geom_line(aes(y = respi_clean_noise2 - 6),col="blue") +
-          geom_line(aes(y = respi_clean_noise3 - 9),col="black")
-  )
-}
-
-#insert df_all in high order function
-#exemple to pick up AB pick_exp(df_all)("AB")
-get_expe <- get_expe_base(df_all)
-if(PRINT && DEBUG) plot_3_low_filter(get_expe("AB"), sample = 15000:35000)
-if(PRINT) purrr::walk(list_exp, ~ plot_3_low_filter(get_expe(.), sample = 15000:35000))
-
-#TODO
-add_var_per_expe <- function(df, fun) {
-}
-
-#========== CLEAN HIGH FREQUENCIES ==============#
-#we can do it all at one
-df_all <- df_all %>% mutate(respi_clean_h = clean_high_freq(respiration,1/5))
-#be carefull with the beginning and the ending
-#Show all graphs
-if(PRINT)walk(list_exp, ~ plot_clean_low_freq(get_expe(.)))
-
-#========== SEPARATE LOW FREQUENCIES (trend) ==============#
-get_expe <- get_expe_base(df_all)
-df_all$respi_clean_hl <- 
-  list_exp %>% map( ~ clean_low_freq(get_expe(.)$respi_clean_h, .01)) %>% flatten_dbl()
-#be carefull with the beginning and the ending :
-df_all$trend <- 
-  list_exp %>% map( ~ clean_high_freq(get_expe(.)$respi_clean_h,.01)) %>% flatten_dbl()
-
-if(DEBUG && PRINT) {
-  df_all %>% filter(nom.experience == "AB") %>% ggplot(aes(x = date, y = respiration)) + geom_line(col = "purple")
-  df_all %>% filter(nom.experience == "AB") %>% ggplot(aes(x = date, y = respi_clean_h)) + geom_line(col = "green")
-  df_all %>% filter(nom.experience == "AB") %>% ggplot(aes(x = date, y = respi_clean_hl)) + geom_line(col = "red")
-  df_all %>% filter(nom.experience == "AB") %>% ggplot(aes(x = date, y = trend)) + geom_line(col = "blue")
-}
-
-#========== ADD FREQUENCY STATS (max, min, mean...) ==============#
-#high order function to create a signal based on a stat and a loess
-add_stat_per_period <- function(stat) {
-  function(df) {
-    df$loess <- loess(df$respi_clean_hl ~ as.numeric(df$date), degree=1,span=.1)$fitted
-    above <- df$respi_clean_hl >= df$loess # Is it ok ???
-    period <- cumsum(c(0, diff(above) == 1))
-    #extract fonction name from stat
-    fun_name <- str_extract(deparse(stat), "(?<=\").*(?=\")")
-    fun_name <- fun_name[!is.na(fun_name)]
-    col_name <- paste(fun_name[1], "per_period", sep = "_")
-    
-    df[,col_name] <- stat_per_period(df$respi_clean_hl, period)(stat)
-    df
-  }
-}
-
-#test
-if(DEBUG) {
-  get_expe <- get_expe_base(df_all)
-  add_mean_per_period <- add_stat_per_period(mean)
-  add_max_per_period <- add_stat_per_period(max)
-  add_min_per_period <- add_stat_per_period(min)
-  test <- add_mean_per_period(get_expe("AB"))
-  test <- rbind(test, add_mean_per_period(get_expe("AW")))
-  test2 <- purrr::map_df(list("AB","AW"), ~ add_mean_per_period(get_expe(.)))
-  expect_true(all(test$mean_per_period == test2$mean_per_period))
-  
-  df <- data.frame(date = rep(1:4000), respi_clean_hl = rep(c(2, 3, 2, 1, 0, -1, 0, 1),500))
-  #lm <- loess(df$respi_clean_hl ~ as.numeric(df$date))
-  #plot(df$date[1:100],df$respi_clean_hl[1:100], type = "l") + abline(0.003008, -0.0000015)
-  expect_equal(mean(add_mean_per_period(df)$mean_per_period), 1)
-  expect_lt(abs(mean(add_max_per_period(df)$max_per_period) -3 ), 5e-04)
-  expect_lt(abs(mean(add_min_per_period(df)$min_per_period) +1) , 5e-04)
-}
-
-##TODO travailler par colonnes au lieu du df ?
-get_expe <- get_expe_base(df_all)
-add_mean_per_period <- add_stat_per_period(mean)
-df_all <- purrr::map_df(list_exp, ~ add_mean_per_period(get_expe(.)))
-get_expe <- get_expe_base(df_all)
-add_min_per_period <- add_stat_per_period(min)
-df_all <- purrr::map_df(list_exp, ~ add_min_per_period(get_expe(.)))
-get_expe <- get_expe_base(df_all)
-add_max_per_period <- add_stat_per_period(max)
-df_all <- purrr::map_df(list_exp, ~ add_max_per_period(get_expe(.)))
-get_expe <- get_expe_base(df_all)
-
-###### frequency
-df_all$period_duration  <- period_id2duration(df_all$max_per_period)
-if(DEBUG){
-  test  <- period_id2duration(df_all$mean_per_period)
-  expect_equal(df_all$period_duration, test)
-}
-
-plot_loess <- function(df) {
-  print(ggplot(df, aes(x = date, y = respi_clean_hl)) + geom_line(col = "red") +
-          geom_line(aes(y  = loess), col = "blue") +
-          ggtitle(paste("data", df$nom.experience[1])))
-}
-
-get_expe <- get_expe_base(df_all)
-#data_AB <- add_max_min_freq(data_AB)
-#plot_loess(get_expe("AB"))
-if(PRINT) purrr::walk(list_exp, ~ plot_loess(get_expe(.)))
-
-plot_signal <- function(df) {
-  ggplot(data = df) + geom_line(aes(x= date, y = respi_clean_hl), color = "blue") +
-    geom_smooth(method="loess", formula = y ~ x, se=TRUE, size= 1, span=.2, color = "green")  +
-    geom_line(aes(x = date, y = loess ), color = "green")  +
-    geom_line(aes(x = date, y = max_per_period), color = "red") +
-    geom_line(aes(x = date, y = min_per_period), color = "purple") +
-    geom_text(aes(x = date, y = max_per_period, label= period_duration), check_overlap = TRUE) +
-    ggtitle(df$nom.experience)
-}
-
-if(PRINT ) {
-  get_expe <- get_expe_base(df_all)
-  
-  plot_signal(get_expe("AB")[1000:10000,])
-  plot_signal(get_expe("CLP")[1000:10000,])
-  plot_signal(get_expe("CW")[1000:10000,])
-  plot_signal(get_expe("DA")[1000:10000,])
-  plot_signal(get_expe("DA2")[1000:10000,])
-  plot_signal(get_expe("DA3")[1000:10000,])
-  plot_signal(get_expe("DE")[1000:10000,])
-  plot_signal(get_expe("PCo")[1000:10000,])
-  plot_signal(get_expe("PCo2")[1000:10000,])
-  plot_signal(get_expe("PCo3")[1000:10000,])
-}
+df_transpi <- load("./data/df_transpi.RDa")
+df_temp <- load("./data/df_temp.RDa")
+df_freq_card <- load("./data/df_freqcard.RDa")
+df_resp <- load("./data/df_resp.RDa")
 
 ############## PREP FOR KOHONEN MAP ###############
 

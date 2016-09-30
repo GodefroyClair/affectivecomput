@@ -1,11 +1,14 @@
-weighted.var <- function(x, w, na.rm = FALSE) {
-  if (na.rm) {
-    w <- w[i <- !is.na(x)]
-    x <- x[i]
+
+##create a function to plot a variable on each experience
+plot_var_exp_ho <- function(df, var_select) {
+  df %>% select_("date", "nom.experience", var_select, "tps.ecoule", "quart.temps")
+  function(nom.exp, print = T) { 
+    df_exp <- df %>% filter(nom.experience == nom.exp)
+    gg <- ggplot(df_exp, aes_string(x = "date", y = var_select)) + 
+      geom_path() +
+      ggtitle(paste("transpi", nom.exp))
+    if(print == T) print(gg)
+    else gg
   }
-  sum.w <- sum(w)
-  sum.w2 <- sum(w^2)
-  mean.w <- sum(x * w) / sum(w)
-  (sum.w / (sum.w^2 - sum.w2)) * sum(w * (x - mean.w)^2, na.rm =
-                                       na.rm)
 }
+
