@@ -9,6 +9,7 @@ list_exp <- c("AB", "ST", "DA", "LM", "FS1", "PCo", "PCo2", "PCo3", "CW",
 list_half_1 <- list_exp[1:floor(length(list_exp)/2)]
 list_half_2 <- list_exp[(floor(length(list_exp)/2)+1):length(list_exp)]
 
+#IMPORT the basic df
 import_df_all <- function(){
   mac_gd_path <- "/Users/godot/githubRepos/"
   hp_gd_path <- "C:/Users/Godefroy/githubRepos/"

@@ -1,5 +1,5 @@
 ###########################################################
-######################## CREATE SOM MAP ###################
+######################## CAP & SOM MAP ###################
 ###########################################################
 # to customize the color scheme, one can use the scale_fill_gradientn() function 
 # in combination with brewer.pal() from the RColorBrewer package. 
@@ -7,31 +7,38 @@
 # You will use mostly red colors here, but you can type display.brewer.all() in the R console to see the available color palattes.)
 
 
-
 library(devtools)
-library(plyr)
-library(ggplot2)
-library(gtable)
+library(knitr)
+#stat
 library(kohonen)
-library(tidyr)
 library(signal)
-library(dplyr)
-library(purrr)
-library(testthat)
+#Whickham
 library(stringr)
-library(ggradar)
 library(purrr)
-library(reshape2)
+library(tidyr)
+library(dplyr)
+library(tibble)
+library(tibble)
+suppressPackageStartupMessages(library(dplyr))
 library(lubridate)
+library(testthat)
+#GGplot & data viz
+library(ggplot2)
+#library(ggbiplot)
+library(ggradar)
+library(ggbagplot)
+library(grid)
+#other struc
 library(data.table)
-#install_github("vqv/ggbiplot")
-library(ggbiplot)
+library(gtable)
+#?
+library(grDevices)
+library(reshape2)
+library(scales)
 #instal ggradar : devtools::install_github("ricardo-bion/ggradar", dependencies=TRUE)
 # configured to work on a Mac, change directory to Unix or Windows
 #download.file("https://dl.dropboxusercontent.com/u/2364714/airbnb_ttf_fonts/Circular Air-Light 3.46.45 PM.ttf", "/Library/Fonts/Circular Air-Light 3.46.45 PM.ttf", method="curl")
 #extrafont::font_import(pattern = 'Circular', prompt=FALSE)
-suppressPackageStartupMessages(library(dplyr))
-library(scales)
 theme_set(theme_bw(24))
 
 ################################# MACRO ###################
@@ -45,101 +52,112 @@ if (!exists("PRINT")) PRINT <- FALSE
 #######################LOAD & PREP #########################
 ############################################################
 
-
+#general helpers
 source("../RGeneralFunctions/dplyr-functions.R")
 source("../RGeneralFunctions/load-functions.R")
 source("../RGeneralFunctions/cleaning-functions.R")
 source("../RGeneralFunctions/ggplot-functions.R")
 source("../RGeneralFunctions/clean-filters-functions.R")
-
-
-library(knitr)
-library(grid)
-library(ggplot2)
-library(gtable)
-library(reshape2)
-library(grDevices)
-library(signal)
-library(dplyr)
-theme_set(theme_bw(24))
-
-############################################################
-#######################LOAD & PREP #########################
-############################################################
-
-
-source("../RGeneralFunctions/ggplot-functions.R")
+#affect comput related
 source("./functions/load_df-all.R")
-source("../RGeneralFunctions/clean-filters-functions.R")
-source("../RGeneralFunctions/cleaning-functions.R")
-#for plot_ho
-source(file = "./functions/kohonen_graph.R")
+source(file = "./functions/kohonen_graph.R") #for plot_ho
 
+df_all <- import_df_all()
+df_all <- as_data_frame(df_all)
 
 ###########################################################
 ###################FIN LOAD & PREPARE######################
 ###########################################################
 
-df_all <- import_df_all()
-df_half_1 <- df_all[df_all$nom.experience %in% list_half_1,]
-df_half_2 <- df_all[df_all$nom.experience %in% list_half_2,]
-
-
-
-
-###########################################################
-###################   DATA VIZ    #########################
-###########################################################
-plot.evol.par.expe(df_half_1, mesure = "frequence.cardiaque")
-plot.evol.par.expe(df_half_2, mesure = "frequence.cardiaque")
 
 ###########################################################
 ################ ASSEMBLE CLEAN DATA ######################
 ###########################################################
 
-df_transpi <- load("./data/df_transpi.RDa")
-df_temp <- load("./data/df_temp.RDa")
-df_freq_card <- load("./data/df_freqcard.RDa")
-df_resp <- load("./data/df_resp.RDa")
+
+source("./functions/add_variables.R")
+df_all <- transpi_add_variables(df_all)
+df_all <- respi_add_variables(df_all)
+df_all <- freqcard_add_variables(df_all)
+df_all <- temp_add_variables(df_all)
+df_all <- as_data_frame(df_all)
+
+#df_transpi <- load("./data/df_transpi.RDa")
+#df_temp <- load("./data/df_temp.RDa")
+#df_freq_card <- load("./data/df_freqcard.RDa")
+#df_resp <- load("./data/df_resp.RDa")
+
+df_half_1 <- df_all[df_all$nom.experience %in% list_half_1,]
+df_half_2 <- df_all[df_all$nom.experience %in% list_half_2,]
+
+################### EXOGENEOUS VARIABLES ############
+
+## AR 
+#df_all$state <- NA
+#df_all %>% filter()
+# #table(round(df_all$tps.ecoule))
+# df_all %>% dplyr::group_by(nom.experience) %>% dplyr::select(tps.ecoule) %>% dplyr::summarise(max(tps.ecoule))
+# expe_type1 <- df_all %>% group_by(nom.experience) %>% filter(max(tps.ecoule) > 1500 & max(tps.ecoule) < 1600)
+# nom_expe_type1 <- unique(as.character(expe_type1$nom.experience))
+# 
+# library(xts)
+# library(timeSeries)
+# library(difftime)
+# x <- timeSeries(1:10, 1:10)
+# df_all$evol <- NA
+# 
+# df_all %>% filter(nom.experience %in% nom_expe_type1) <- "neutre"
+# data_chg_etat <- c("3:06-3:06", "3:33-3:33", "4:16")
+# #df_all %>% filter(nom.experience %in% nom_expe_type1 & tps.ecoule ) 
 
 ############## PREP FOR KOHONEN MAP ###############
+list_expe <- levels(df_all$nom.experience)
+list_expe_sml <- list_expe[(!list_expe %in% c("AW","DA2","DA3","EZ1","FS1","GC1","HL","IA","LM","ST"))]
+list_expe_lrg <- list_expe[(!list_expe %in% c("FS1","LM","HL","ST"))]
 
-df_selec <- df_all[!(df_all$nom.experience %in% c("AW","DA2","DA3","EZ1","FS1","GC1","HL","IA","LM","ST")),]
-df_selec2 <- df_all[!(df_all$nom.experience %in% c("FS1","LM","HL","ST")),]
-list_expe_selec <- c("AB", "CLP", "CW", "DA", "DE", "PCo", "PCo2", "PCo3")
-list_expe_selec2 <- c("AB", "CLP", "CW", "DA", "DE", "PCo", "PCo2", "PCo3")
+#choose between the 2 list of experiences : 
+#list_expe_selec <- list_expe_sml
+list_expe_selec <- list_expe_lrg
+df_selec <- df_all[df_all$nom.experience %in% list_expe_selec,]
 
-#nom des variables sur lesquels nous allons travailler
+#nom des variables sur lesquelles seront appliquées les algo statistique
 #on retire nom experience
 noms_var_stat <- c("activite.electrodermale","temperature","frequence.cardiaque",
-                   "nom.experience", "respi_clean_hl","trend", 
+                   "nom.experience", "respi_clean_hl","respi_trend", 
                    "loess","max_per_period","min_per_period","period_duration")
+#larger list
+noms_var_stat <- c("nom.experience",
+                   "elecderm_clean", "elecderm_diff", 
+                   "temp_clean", "temp_diff",
+                   "freqcard_clean", "freqcard_diff",
+                   "respi_clean", "respi_clean_hl", "respi_trend", "loess", 
+                   "max_per_period","min_per_period","period_duration")
+df_stat <- as_data_frame(df_selec[,noms_var_stat])
 
-
-df_stat <- data.frame(df_selec[,noms_var_stat])
 #2 scale : global or per individuals
 
 #scale the var by experiences 
 #!!bug with dplyr::group_by() + dplyr::mutate_each() + scale() : https://github.com/hadley/dplyr/issues/2049
 #need to create my own scale function
-my_scale <- function(x) c(scale(x))
+my_scale <- function(x, scale = T) c(scale(x, scale = scale))
 
-df_stat_scaled_per_exp <- df_stat %>% group_by(nom.experience) %>% mutate_each(funs(my_scale))
-#df_stat_scaled_per_exp <- data.frame(df_stat_scaled_per_exp[1:nrow(df_stat_scaled_per_exp),])
+df_stat_scaled_per_exp <- df_stat %>% group_by(nom.experience) %>% mutate_each(funs(my_scale)) %>% ungroup 
 
-df_stat_centered_per_exp <- df_stat %>% group_by(nom.experience) %>% mutate_each(funs(my_scale(., scale = F)))
-#treat bug
-df_stat_centered_per_exp <- as.data.frame(df_stat_centered_per_exp[1:nrow(df_stat_centered_per_exp),])
+df_stat_centered_per_exp <- df_stat %>% group_by(nom.experience) %>% mutate_each(funs(my_scale(., scale = F))) %>% ungroup
 
 #simple (general) scale
 df_stat_scaled <- df_stat %>% mutate_each(funs(scale), -c(nom.experience, loess)) 
 
-
 df_stat_scale_scale <- df_stat_scaled_per_exp %>% mutate_each(funs(my_scale(.)), -nom.experience) 
-df_stat_scale_scale <- data.frame(df_stat_scale_scale)
+df_stat_scale_scale2 <- df_stat_scaled_per_exp2 %>% mutate_each(funs(my_scale(.)), -nom.experience) 
+#df_stat_scale_scale <- data.frame(df_stat_scale_scale)
 
 df_stat_centered_scale <- df_stat_centered_per_exp %>% mutate_each(funs(my_scale(., scale = F)), -nom.experience) 
-df_stat_centered_scale <- data.frame(df_stat_centered_scale)
+df_stat_centered_scale2 <- df_stat_centered_per_exp2 %>% mutate_each(funs(my_scale(., scale = F)), -nom.experience) 
+
+df_stat_scaled <- df_stat_scaled %>% bind_cols(df_selec %>% dplyr::select(tps.ecoule))
+df_stat_scaled2 <- df_stat_scaled2 %>% bind_cols(df_selec2 %>% dplyr::select(tps.ecoule))
+
 if(DEBUG) {
   ## test solution 4 bug
   set.seed(7)
@@ -166,81 +184,151 @@ if(DEBUG) {
 #testthat::expect_true(any(as.matrix(t2_1) == as.matrix(t1[df_test$C == "one",1:2])))
 #testthat::expect_true(any(as.matrix(t2_2) == as.matrix(t1[df_test$C == "two",1:2])))
 
-#######################
-########ACP ###########
-#######################
+########################
+######## PCA ###########
+########################
 # PCA for respiration
 
-PCbiplot <- function(PC, x="PC1", y="PC2") {
+PCAbiplot <- function(PC, x="PC1", y="PC2", sample = NA, seed = 7) {
+  #theme that are used for the multiradar plot
+  pca_theme <-  theme( axis.title.x=element_text(size = 6), axis.text.x=element_text(size = 5),
+                       axis.title.y=element_text(size = 6), axis.text.y=element_text(size = 5))
+  
   # PC being a prcomp objecto
-  PC <- pca_respi
-  data <- data.frame(obsnames=1:length(PC$x), PC$x)
-  plot <- ggplot(data, aes(x=PC1, y=PC2)) + geom_text(alpha=.4, size=3, aes(label=obsnames))
-  plot <- plot + geom_hline(aes(0), size=.2) + geom_vline(aes(0), size=.2)
+  #PC <- pca_respi ##DEBUG##
+  df <- data.frame(row.names = 1:nrow(PC$x), PC$x)
+  #plot_data <- compute.bagplot(x = PC$x, y = PC$y)
+  gg <- ggplot(df, aes(x=PC1, y=PC2)) + stat_bag(alpha=.2, col = "blue", fill = "orange")
+  #gg <- ggplot(df, aes(x=PC1, y=PC2)) + geom_text(alpha=.4, size=3, aes(label=obsnames))
+  #gg <- ggplot(df, aes(x=PC1, y=PC2)) + geom_point(alpha=.2, size=.5, col= "blue")
+  gg <- gg + geom_hline(aes(yintercept = 0), size=.2) + geom_vline(aes(xintercept = 0), size=.2)
   datapc <- data.frame(varnames=rownames(PC$rotation), PC$rotation)
   mult <- min(
-    (max(data[,"PC2"]) - min(data[,"PC2"])/(max(datapc[,"PC2"])-min(datapc[,"PC2"]))),
-    (max(data[,"PC1"]) - min(data[,"PC1"])/(max(datapc[,"PC1"])-min(datapc[,"PC1"])))
+    (max(df[,"PC2"]) - min(df[,"PC2"]) / (max(datapc[,"PC2"]) - min(datapc[,"PC2"]))),
+    (max(df[,"PC1"]) - min(df[,"PC1"]) / (max(datapc[,"PC1"]) - min(datapc[,"PC1"])))
   )
   datapc <- transform(datapc,
                       v1 = .7 * mult * (get("PC1")),
                       v2 = .7 * mult * (get("PC2"))
   )
-  plot <- 
-    
-  plot + coord_equal() + 
-    geom_text(data=datapc, aes(x=datapc$v1, y=datapc$v2, label=varnames), size = 5, vjust=1, color="red")
-  plot <- plot + geom_segment(data=datapc, aes(x=0, y=0, xend=v1, yend=v2), arrow=arrow(length=unit(0.2,"cm")), alpha=0.75, color="red")
-  plot
+  
+  gg <- gg +
+    geom_text(data = datapc, aes(x = datapc$v1, y = datapc$v2, label = varnames), 
+              size = 2, vjust = 1, color = "black")
+  gg <- gg + geom_segment(data=datapc, aes(x = 0, y = 0, xend = v1, yend = v2), 
+                          arrow = arrow(length = unit(0.2,"cm")), alpha=0.75, color="Magenta")
+  gg + pca_theme
+  
 }
-PCbiplot(pca_respi)
-
-
-df_respi_pca <- df_stat_scale_scale %>% select(-nom.experience, -activite.electrodermale, -frequence.cardiaque, -temperature)
-pca_respi <- prcomp(df_respi_pca, center = T, scale = T)
-str(pca_respi)
-plot(pca_respi, type = "l")
-biplot(pca_respi)
 
 # PCA for all variables
-colnames(df_stat_scale_scale)
-df_pca <- df_stat_scale_scale %>% select(-nom.experience, -loess)
-df_pca_AB_CW <-  df_stat_scale_scale  %>% as.data.table()  %>% 
-  dplyr::filter(nom.experience == "AB", nom.experience = "CW" )  %>% select(-nom.experience, -loess)
-
-pca_AB_CW <- prcomp(df_pca_AB_CW, center = T, scale =T)
-str(pca_AB_CW)
-print(pca_AB_CW)
-summary(pca_AB_CW)
-plot(pca_AB_CW, type = "l")
-biplot(pca_AB_CW)
-
-pca <- prcomp(df_pca, center = T, scale =T)
+df_pca <- df_stat %>% ungroup %>% dplyr::select(-nom.experience, -loess)
+df_pca2 <- df_stat2 %>% ungroup %>% dplyr::select(-nom.experience, -loess)
+pca <- prcomp( ~ ., data = df_pca, center = T, scale = T, na.action = na.omit)
+pca2 <- prcomp( ~ ., data = df_pca2, center = T, scale = T, na.action = na.omit)
+pca_rot <- as_data_frame(pca$rotation)
+pca_rot2 <- as_data_frame(pca2$rotation)
+dim(pca$x)
+dim(pca2$x)
+#library(ade4)
+#pca2 <- nipals(df_pca)
+str(df_pca)
 str(pca)
-print(pca)
-summary(pca)
-plot(pca, type = "l")
+
+# like plot(pca, type = "l") but better ;)
+pca_plot_var <- function(pca){
+  var_by_axis <- data_frame(share_var_total = pca$sdev^2/sum(pca$sdev^2), pca_axis = as.factor(1:length(pca$sdev)))
+  ggplot(var_by_axis, aes(x = pca_axis, y = share_var_total, group = 1)) + 
+    geom_line(col =" grey") + geom_point(col = "blue") +
+    xlab("axis rank") +
+    ylab("share of total variance") +
+    ggtitle("Principal component analyis : variance per axis") +
+    scale_y_continuous(labels = percent) +
+    theme_classic()
+}
+pca_plot_var(pca)
+
+PCAbiplot(pca)
+
+pca_respi <- prcomp( ~ respi_clean + respi_clean_hl + respi_trend + max_per_period + min_per_period +
+                       period_duration, data = df_pca, center = T, scale = T, na.action = na.omit)
+# plot(pca_respi, type = "l")
+pca_plot_var(pca_respi)
+#PCAbiplot(pca_respi)
+
+pca_transpi <- prcomp( ~ elecderm_clean + elecderm_diff, data = df_pca, center = T, scale = T, na.action = na.omit)
+plot(pca_transpi, type = "l")
+PCAbiplot(pca_transpi)
+
+pca_temp <- prcomp( ~ temp_clean + temp_diff, data = df_pca, center = T, scale = T, na.action = na.omit)
+plot(pca_transpi, type = "l")
+PCAbiplot(pca_temp)
+
+pca_freqcard <- prcomp( ~ freqcard_clean + freqcard_diff, data = df_pca, center = T, scale = T, na.action = na.omit)
+plot(pca_freqcard, type = "l")
+PCAbiplot(pca_freqcard)
+
+#get the percent of variance of eigen value 1 compared to eigen value 2
+share_eigenv1 = pca$sdev[1]^2 / sum(pca$sdev[1:2]^2)
+share_eigenv2 = pca$sdev[2]^2 / sum(pca$sdev[1:2]^2)
+
+
+
 
 # Predict PCs
 #predict(pca,  newdata=tail(df_scale_scale, 2))
 
-require(graphics)
-biplot(pca)
+#require(graphics)
 
-install_github("ggbiplot", "vqv")
+#install_github("ggbiplot", "vqv")
 
-ggscreplot(pca, type = c("pev", "cev"))
+#ggscreplot(pca, type = c("pev", "cev"))
+# 
+# ggbiplot(pca, obs.scale = 1, var.scale = 1, 
+#          ellipse = TRUE, 
+#          circle = TRUE) +
+#   scale_color_discrete(name = '') + 
+#   theme(legend.direction = 'horizontal', 
+#         legend.position = 'top')
+# ggbiplot(pca, obs.scale = 1, var.scale = 1,
+#          groups = df_stat_scale_scale$nom.experience, ellipse = TRUE, circle = TRUE) +
+#   scale_color_discrete(name = '') +
+#   theme(legend.direction = 'horizontal', legend.position = 'top')
 
-ggbiplot(pca, obs.scale = 1, var.scale = 1, 
-         ellipse = TRUE, 
-         circle = TRUE) +
-  scale_color_discrete(name = '') + 
-  theme(legend.direction = 'horizontal', 
-        legend.position = 'top')
-ggbiplot(pca, obs.scale = 1, var.scale = 1,
-         groups = df_stat_scale_scale$nom.experience, ellipse = TRUE, circle = TRUE) +
-  scale_color_discrete(name = '') +
-  theme(legend.direction = 'horizontal', legend.position = 'top')
+#-------------------------------------------#
+#--- Eliminate too extreme observations  ---#
+#-------------------------------------------#
+
+df_rm_var <- df_stat_scaled %>% ungroup %>% dplyr::select(-nom.experience, -loess)
+stat_df <- df_rm_var %>% purrr::map(~ c(mean(., na.rm = T), sd(., na.rm = T)))
+
+dist_deal_na <- function(vec) {
+  sqrt(sum(vec^2, na.rm = T))
+}
+df_rm_var <- df_rm_var %>% purrr::by_row(..f = dist_deal_na, 
+                                         .collate = "cols", .to = "dist")
+
+df_stat_scaled <- dplyr::bind_cols(df_stat_scaled, dplyr::select(df_rm_var, dist))
+
+View(df_stat_scaled)
+
+
+if(DEBUG) {
+  test <- df_stat_scaled %>% select(c(2:10,12:14))
+  expect_equal(dist_deal_na(test[1,]), df_stat_scaled$dist[1])
+  expect_equal(dist_deal_na(test[2,]), df_stat_scaled$dist[2])
+  expect_equal(dist_deal_na(test[2000,]), df_stat_scaled$dist[2000])
+  set.seed(77)
+  nb <- round(runif(n =1, min = 1, max = nrow(test)))
+  expect_equal(dist_deal_na(test[nb,]), df_stat_scaled$dist[nb])
+}
+
+#ggplot(df_stat_scaled) %+% geom_jitter(aes(x = 1, y = dist, col = nom.experience), alpha = .5)
+ggplot(df_stat_scaled) %+% geom_boxplot(aes(x = 1, y = dist, col = nom.experience), alpha = .5)
+ggplot(df_stat_scaled) %+% geom_boxplot(aes(x = 1, y = dist, col = tps.ecoule), alpha = .5)
+
+summary(df_rm_var$dist > 6)
+df_rm_var$dist_sup_6 <- df_rm_var$dist > 6
 
 #=======================================#
 ############### K-MEANS #################
@@ -280,9 +368,12 @@ plot( ratio_ss, type = "b", xlab = "k")
 #rlen permet de préciser le nombre d'itérations
 #temp à mettre au plus haut
 set.seed(77)
-df_SOM_scale_scale <-  df_stat_scaled_per_exp %>% dplyr::select(-nom.experience, -loess)
+df_SOM_scale_scale <-  df_stat_scaled_per_exp %>% ungroup %>% dplyr::select(-nom.experience, -loess)
+df_SOM_scale_scale_new <-  df_stat_scaled_per_exp_new %>% ungroup %>%  dplyr::select(-nom.experience, -loess)
 df_SOM_scaled <-  df_stat_scaled %>% dplyr::select(-nom.experience, -loess)
-df_SOM_center_scale <-  df_stat_centered_scale %>% dplyr::select(-nom.experience, -loess)
+df_SOM_scaled_new <-  df_stat_scaled_new %>% dplyr::select(-nom.experience, -loess)
+df_SOM_center_scale <-  df_stat_centered_scale %>% ungroup %>% dplyr::select(-nom.experience, -loess)
+df_SOM_center_scale_new <-  df_stat_centered_scale_new %>% ungroup %>% dplyr::select(-nom.experience, -loess)
 
 i <- 1:60
 x <- 1:120
@@ -294,6 +385,46 @@ som1 <- kohonen::som(data = as.matrix(df_SOM_scale_scale), grid = somgrid(30, 30
 #som2 <- kohonen::som(data = as.matrix(df_SOM_scaled), grid = somgrid(30, 30, "hexagonal"), rlen=180, alpha =c(2,0.0001))
 som3 <- kohonen::som(data = as.matrix(df_SOM_center_scale), grid = somgrid(30, 30, "hexagonal"), rlen=180, alpha =c(2,0.0001))
 
+
+som_10_sc_sc <- kohonen::supersom(data = list(mat = as.matrix(df_SOM_scale_scale_new)),
+                                  grid = somgrid(10, 10, "hexagonal"),
+                                  rlen = 200, alpha = c(2,0.0001),
+                                  maxNA.fraction = .5,
+                                  keep.data = F,
+                                  contin = T,
+                                  whatmap = 1)
+
+som_10_avg_sc <- kohonen::supersom(data = list(mat = as.matrix(df_SOM_center_scale_new)),
+                                   grid = somgrid(10, 10, "hexagonal"),
+                                   rlen = 200, alpha = c(2,0.0001),
+                                   maxNA.fraction = .5,
+                                   keep.data = F,
+                                   contin = T,
+                                   whatmap = 1)
+
+som_short_new <- kohonen::supersom(data = list(mat = as.matrix(df_SOM_scale_scale_new)),
+                                   grid = somgrid(10, 10, "hexagonal"),
+                                   rlen = 200, alpha = c(2,0.0001),
+                                   maxNA.fraction = .5,
+                                   keep.data = F,
+                                   contin = T,
+                                   whatmap = 1)
+
+som_mid <- kohonen::supersom(data = list(mat = as.matrix(df_SOM_scale_scale)),
+                             grid = somgrid(20, 20, "hexagonal"),
+                             rlen = 200, alpha = c(1,0.0001),
+                             maxNA.fraction = .5,
+                             keep.data = F,
+                             contin = T,
+                             whatmap = 1)
+
+som_mid_new <- kohonen::supersom(data = list(mat = as.matrix(df_SOM_scale_scale_new)),
+                                 grid = somgrid(20, 20, "hexagonal"),
+                                 rlen = 200, alpha = c(1,0.0001),
+                                 maxNA.fraction = .5,
+                                 keep.data = F,
+                                 contin = T,
+                                 whatmap = 1)
 ##Save main data for graphs (for markdown report)
 save(som1,file = "./data/som1.RDa")
 #save(som2,file = "./data/som2.RDa")
@@ -306,9 +437,9 @@ save(df_selec, file = "./data/df_selec.RDa")
 
 ##GRAPHICS
 
-str(som2)
-ref.df <- data.frame(som2$codes)
-df_SOM_scale_scale$ref <- som2$unit.classif
+str(som)
+ref.df <- data.frame(som$codes)
+df_SOM_scale_scale$ref <- som$unit.classif
 df_SOM_scale_scale$nom.experience <- df_selec$nom.experience
 
 
@@ -316,25 +447,25 @@ df_SOM_scale_scale$nom.experience <- df_selec$nom.experience
 par(xpd=F)
 par(mai=  c(0, 0, 0, 0))
 #ajout d'itération et une descente de temp plus smooth
-plot(som2, main = "", type="codes",labels = NULL) 
+plot(som, main = "", type="codes",labels = NULL) 
 
-plot(som2, type="changes", main="carte du progrès d'apprentissage")
+plot(som, type="changes", main="carte du progrès d'apprentissage")
 
-plot(som2, type="count", main= "carte de comptages des données captées")
+plot(som, type="count", main= "carte de comptages des données captées")
 
 #obtenir un dégradé de couleurs de bleu à rouge
 coolBlueHotRed <- function(n, alpha = 1) {rainbow(n, end=4/6, alpha=alpha)[n:1]}
-plot(som2, type="quality", palette.name = coolBlueHotRed, main = "carte de \"qualité\" : distance moyenne des données aux neurones")
+plot(som, type="quality", palette.name = coolBlueHotRed, main = "carte de \"qualité\" : distance moyenne des données aux neurones")
 
 #TODO : heatmap par variable
-plot(som2, type = "property", property = som2$codes[,1], main="carte heatmap de l'activité électrodermale", palette.name=coolBlueHotRed)
-plot(som2, type = "property", property = som2$codes[,2], main="carte heatmap de temperature", palette.name=coolBlueHotRed)
-plot(som2, type = "property", property = som2$codes[,3], main="carte heatmap de freq card", palette.name=coolBlueHotRed)
-plot(som2, type = "property", property = som2$codes[,4], main="carte heatmap de respi nettoyée", palette.name=coolBlueHotRed)
-plot(som2, type = "property", property = som2$codes[,5], main="carte heatmap de trend", palette.name=coolBlueHotRed)
-plot(som2, type = "property", property = som2$codes[,6], main="carte heatmap de max par periode", palette.name=coolBlueHotRed)
-plot(som2, type = "property", property = som2$codes[,7], main="carte heatmap de min par periode", palette.name=coolBlueHotRed)
-plot(som2, type = "property", property = som2$codes[,8], main="carte heatmap de frequence", palette.name=coolBlueHotRed)
+plot(som, type = "property", property = som$codes[,1], main="carte heatmap de l'activité électrodermale", palette.name=coolBlueHotRed)
+plot(som, type = "property", property = som$codes[,2], main="carte heatmap de temperature", palette.name=coolBlueHotRed)
+plot(som, type = "property", property = som$codes[,3], main="carte heatmap de freq card", palette.name=coolBlueHotRed)
+plot(som, type = "property", property = som$codes[,4], main="carte heatmap de respi nettoyée", palette.name=coolBlueHotRed)
+plot(som, type = "property", property = som$codes[,5], main="carte heatmap du trend de respi", palette.name=coolBlueHotRed)
+plot(som, type = "property", property = som$codes[,6], main="carte heatmap de max par periode", palette.name=coolBlueHotRed)
+plot(som, type = "property", property = som$codes[,7], main="carte heatmap de min par periode", palette.name=coolBlueHotRed)
+plot(som, type = "property", property = som$codes[,8], main="carte heatmap de frequence", palette.name=coolBlueHotRed)
 
 
 ####################### NEW GRAPH WITH GGPLOT #########################
@@ -358,7 +489,7 @@ nb_group <- 100
 nb_var <- 8
 #make a df with the value of the variables associated with each neurone and the id of the neurone (group)
 #it is easier to rescale everythng to ratio ([0-1]) with rescale
-df_codes <- data.frame(som2$codes) %>% add_rownames(var = "group")  %>% 
+df_codes <- data.frame(som$codes) %>% add_rownames(var = "group")  %>% 
   mutate_each(funs(rescale), -group)  %>% head(nb_group)
 #group needs to be numeric
 df_codes$group <- as.numeric(df_codes$group)
@@ -436,7 +567,7 @@ df_ref <- df_stat_scale_scale #inutile ??
 #on ajoute experience
 df_ref$nom_experience <- df_selec$nom.experience
 #et id_neurone
-df_ref$id_neurone <- som2$unit.classif
+df_ref$id_neurone <- som$unit.classif
 #on retire le superflu, on regroupe par pair id_neurone associé - nom_experience...
 #...et on compte le nombre de données associé à chaque pair
 df_count_neuro_expe <- df_ref %>% select(id_neurone, nom_experience) %>% 
@@ -475,11 +606,11 @@ expe_major_par_neurone <- as.factor(colnames(expe_par_neurone[-1])[max.col(expe_
 #put NA in line of neurone empty
 expe_major_par_neurone[rowSums(expe_par_neurone)==0]<-NA
 #test <- as.factor(rep(c("AB","CW","DA"),300))
-#plot(som2, type = "property", property = as.numeric(test), main="expérience majoritaire par neurone")
+#plot(som, type = "property", property = as.numeric(test), main="expérience majoritaire par neurone")
 
 #representation graphique de l'expérience majoritaire par neurones :
-plot(som2, type = "property", property = as.numeric(expe_major_par_neurone), main="",  heatkey =F,palette.name=coolBlueHotRed)
-text(x=som2$grid$pts[,1],y=som2$grid$pts[,2],labels=expe_major_par_neurone,cex = .5,font=2)
+plot(som, type = "property", property = as.numeric(expe_major_par_neurone), main="",  heatkey =F,palette.name=coolBlueHotRed)
+text(x=som$grid$pts[,1],y=som$grid$pts[,2],labels=expe_major_par_neurone,cex = .5,font=2)
 
 
 ## Graph des répartitions entre expériences par neurones
@@ -544,7 +675,7 @@ df_sec <- as.data.table(df_selec)
 df_sec$one_sec_elapsed <- df_selec$tps.ecoule %>% round(digits = 0) %>% factor()
 df_sec$five_sec_elapsed <- df_selec$tps.ecoule %>% `/`(5)  %>% round(digits = 0) %>% factor()
 #on ajoute id_neurone
-df_sec$id_neurone <- som2$unit.classif
+df_sec$id_neurone <- som$unit.classif
 
 
 ## Table of the time per neurones
@@ -565,7 +696,7 @@ expe_par_sec <- df_count_neuro_1sec %>% spread(nom.experience, count, fill = 0)
 expe_par_5sec <- df_count_neuro_5sec %>% spread(nom.experience, count, fill = 0)
 
 ## table of the neurones graphs according to time
-dt_neur_coord <- data.table(id_neurones = 1:900, x = som2$grid$pts[,1], y = som2$grid$pts[,2])
+dt_neur_coord <- data.table(id_neurones = 1:900, x = som$grid$pts[,1], y = som$grid$pts[,2])
 
 #create a data table that for each experience shows the neurone path in the data and the time spent in each neurone
 chg_neur <- df_sec$id_neurone != lag(df_sec$id_neurone) | df_sec$nom.experience != lag(df_sec$nom.experience) 
