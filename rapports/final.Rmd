@@ -1,0 +1,137 @@
+---
+title: Bilan du travail de classification non supervisée à partir de l’expérience
+  d’affective computing de Viviane Gal
+author: "Godefroy Clair"
+date: "15/02/2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# L'expérience, les données et l'objectif de la mission de data mining
+
+## L'expérience
+
+La base du travail demandé était une expérience préparée et implémentée par Viviane GAL, expérience qui a eu lieu au mois de mars 2014.
+Cette expérience a consisté à proposer différentes activités/tâches à plusieurs personnes....
+Les données transmises par Viviane Gal concernant la mesure physiologique de différents joueurs participant à *une* expérience.
+
+L'affective computing :
+
+
+### Le protocole
+
+Connaissance 
+
+### Les limites du protocole
+
+##  Les données
+
+Les mesures ont été réalisées par 4 capteurs qui concernent respectivement la respiration, l'activité électrodermale, la température et la fréquence cardiaque. 
+
+## L'objectif de la mission
+
+La mission consistait à être capable de retrouver des émotions générées lors de l'expérience à partir des mesures réalisées.
+
+Pour chaque expérience, les données forment une série temporelle (NB : une série temporelle est un vecteur à chaque élément duquel est associée une date ou une date-heure) qui indique avec une fréquence très fine (3000 Hz) l'évolution du comportement physiologique de l'expérimentateur.
+
+L'algorithme recherché doit donc être capable de déterminer grâce à cette série temporelle l'émotion dans laquelle se trouve la personne. En d'autres termes, il doit associé à certains (tous ?) élément de la série une émotion.
+
+D'un point de vue de l'apprentissage statistique, il s'agit donc d'un problème de "clustering" ou partionnnement des données
+
+### Apprentissage statistique
+
+L'idée était de partir d'algorithme d'apprentissage statistique. La raison principale avancée était de proposer des méthodes nouvelles par rapport aux modèles statistiques habituelles.
+
+L'apprentissage statistique ou "machine learning".
+
+### Apprentissage non-supervisée
+
+Les systèmes d'apprentissage statistique  peuvent être classifiés selon l'intensité et le type de supervision qu'ils recoivent. Les 4 grandes catégories d'apprentissage sont supervisées, non-supervisées, semi-supervisés et par renforcement.
+
+Le choix a été fait de passer par de l'apprentissage non-supervisé. Dans ce cadre, les données ne sont pas étiquetées et on ne suppose aucune fonction permettant de classer ou d'ordonnées les données a priori.
+
+Ce qui semble avoir convaincu Viviane Gal était le fait que l'on travaille "en aveugle" : l'algorithme doit être capable de retrouver les différentes périodes où sont sucitées des émotions sans avoir aucun exemple des émotions à retrouver pour le faire.
+Il evite ainsi un des principaux écceuils des algorithmes supervisés et semi-supervisés : le sur-apprentissage. L'algorithme dans ce cas généralise les traits communs aux exemples qu'ils traitent sans pouvoir savoir si ce sont véritablement des traits communs à l'ensemble de la classe qu'il doit délimiter.  Dans ce cas, les résultats obtenus sur la base des données d'apprentissage ne se généralise pas à de nouvelles données.
+
+Avec l'apprentissage non-supervisé, ce problèm est moins prégnant car on n'indique pas comment classer les données : l'algorithme doit être capable de trouver par lui-même les "patterns" différenciant.
+
+### Kohonen
+
+IL existe différents algorithmes d'apprentissage non-supervisé. Certains sont plus dédiés à des problèmes de "classification" et d'autres à des problèmes de "visualisation et réduction de dimension" (la ligne de démarcation n'est pas toujours évidente : certains algorithmes peuvent servir au deux)
+Clustering:
+— k-Moyens
+— Analyse par regroupement hiérarchique
+— Maximisation de l'éspérance
+- cartes auto-organisatrices de Kohonen
+Visualistion et réduction de dimension:
+— Analyse par composantes principales
+— Analyse par composantes principales à noyau
+
+Le choix a été fait d'utiliser l'algorithme de Kohonen. Les raisons :
+- il est utilisé pour le partitionnement des données
+- C'est une spécialité du CNAM
+- Il est disponible sous R
+- Il évite les problèmes de l'algorithme des k-moyens (convergence vers des minimums locaux)
+
+#### L'algorithme des cartes auto-organisatrices ou carte de Kohonen
+
+Le concept développé en 1984 par le staticien Teuvo Kohonen est insipiré du fonctionnement des neurones. 
+
+
+
+## Le choix du langage
+
+R : plus facile d'accès, gratuit, language dont j'avais la meilleure connaissance.
+Bien qu'il existe de nombreux autres langages pour la plupart plus rapide que R, comme Matlab, C++ ou Python, R combine une rapidité suffisante (pour un language intreprêté) avec une syntaxe claire et intuitive pour la manipulation et la visualisation de données.
+Parmi ces avantages, on peut aussi noter :
+- R est un language flexible, orienté objet, qui permet de manipuler des structures de données complexes d'une manière efficace et condensé. En particulier ces dernières années, où notamment sous l'impulsion du statisticien Hadley Hickham, un certain nombre de nouvelles bibliothèqes utilisant la puissance des langages fonctionnelles ont été développés pour faciliter le travail capital du nettoyage des données (dplyr, ggplot, tidyr, stringr, readr...).
+- Ces capacités graphiques sont remarquables
+- Possibilité d'interfacer avec de nombreux processeurs de texte comme LATEX (via le package Sweave) ou Markdown (via KnitR).
+- R est un logiciel gratuit et libre,
+- Il existe une communauté active qui fournit de nombreux outils pour accroitre sa connaissance (newsletter, blog, ...)
+- de nombreux tutoriels et manuels gratuits et disponible sur le web en provenance notamment du monde universitaire du fait de son utilisation large dans l'enseignement.
+- il est multiplateforme (notamment Mac, Windows, Linux, Unix...)
+
+ It runs on all platforms: Mac, Windows, Linux and Unix ◮ R provides a powerful interface
+⊲ Can integrate programs written in other languages ⊲ Such as C, C++, Fortran, Perl, Python, and Java.
+
+It is increasingly common to see people who develop new methodology simulta- neously producing an R package
+## Les 4 grandeurs mesurées
+
+la respiration, l'activité électrodermale, la température et la fréquence cardiaque.
+
+
+## Les difficultés rencontrés
+
+### Les données manquantes
+
+### Les données aberrantes
+
+### Les difficultés d'ordre général
+
+#### Les difficultés techniques
+
+* La théorie du signal
+* Les regressions
+
+#### Les incertitudes non-levées
+
+#### La solitude de l'apprenti-sorcier...
+
+#### De la difficulté d'accepter la défaite et de la fuite en avant...
+
+## Etude d'un cas spécifique : la respiration
+
+## Le nettoyage et l'extraction de nouvelles "features"
+
+### Le nettoyage : du plus simple au plus incertain
+
+#### Les "trucs" du data scientist : hyperparamètres, découpage, visualisation...
+
+### Les nouvelles features
+
+# 

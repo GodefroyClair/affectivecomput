@@ -1,3 +1,4 @@
+# !diagnostics off
 ###########################################################
 ######################## CAP & SOM MAP ###################
 ###########################################################
@@ -22,6 +23,7 @@ library(tibble)
 suppressPackageStartupMessages(library(dplyr))
 library(lubridate)
 library(testthat)
+library(assertthat)
 #GGplot & data viz
 library(ggplot2)
 #library(ggbiplot)
@@ -35,18 +37,23 @@ library(gtable)
 library(grDevices)
 library(reshape2)
 library(scales)
+library(readr)
+library(stringr)
 #instal ggradar : devtools::install_github("ricardo-bion/ggradar", dependencies=TRUE)
 # configured to work on a Mac, change directory to Unix or Windows
 #download.file("https://dl.dropboxusercontent.com/u/2364714/airbnb_ttf_fonts/Circular Air-Light 3.46.45 PM.ttf", "/Library/Fonts/Circular Air-Light 3.46.45 PM.ttf", method="curl")
 #extrafont::font_import(pattern = 'Circular', prompt=FALSE)
 theme_set(theme_bw(24))
 
-################################# MACRO ###################
-################################# #########################
+####################################################################################
+################################# MACRO & HYPER-PARAMETRES##########################
+####################################################################################
 
 if (!exists("DEBUG")) DEBUG <- FALSE
 if (!exists("PRINT")) PRINT <- FALSE
-
+LARGE_SET_EXPE <- TRUE
+LARGE_SET_VAR <- TRUE
+PCA_REPLACE_NA <- FALSE
 
 ############################################################
 #######################LOAD & PREP #########################
@@ -58,12 +65,14 @@ source("../RGeneralFunctions/load-functions.R")
 source("../RGeneralFunctions/cleaning-functions.R")
 source("../RGeneralFunctions/ggplot-functions.R")
 source("../RGeneralFunctions/clean-filters-functions.R")
+source("../RGeneralFunctions/toolbox_functions.R")
 #affect comput related
 source("./functions/load_df-all.R")
 source(file = "./functions/kohonen_graph.R") #for plot_ho
-
 df_all <- import_df_all()
 df_all <- as_data_frame(df_all)
+
+
 
 ###########################################################
 ###################FIN LOAD & PREPARE######################
@@ -82,57 +91,75 @@ df_all <- freqcard_add_variables(df_all)
 df_all <- temp_add_variables(df_all)
 df_all <- as_data_frame(df_all)
 
-#df_transpi <- load("./data/df_transpi.RDa")
-#df_temp <- load("./data/df_temp.RDa")
-#df_freq_card <- load("./data/df_freqcard.RDa")
-#df_resp <- load("./data/df_resp.RDa")
-
-df_half_1 <- df_all[df_all$nom.experience %in% list_half_1,]
-df_half_2 <- df_all[df_all$nom.experience %in% list_half_2,]
-
 ################### EXOGENEOUS VARIABLES ############
 
-## AR 
-#df_all$state <- NA
-#df_all %>% filter()
-# #table(round(df_all$tps.ecoule))
-# df_all %>% dplyr::group_by(nom.experience) %>% dplyr::select(tps.ecoule) %>% dplyr::summarise(max(tps.ecoule))
-# expe_type1 <- df_all %>% group_by(nom.experience) %>% filter(max(tps.ecoule) > 1500 & max(tps.ecoule) < 1600)
-# nom_expe_type1 <- unique(as.character(expe_type1$nom.experience))
-# 
-# library(xts)
-# library(timeSeries)
-# library(difftime)
-# x <- timeSeries(1:10, 1:10)
-# df_all$evol <- NA
-# 
-# df_all %>% filter(nom.experience %in% nom_expe_type1) <- "neutre"
-# data_chg_etat <- c("3:06-3:06", "3:33-3:33", "4:16")
-# #df_all %>% filter(nom.experience %in% nom_expe_type1 & tps.ecoule ) 
+df_all$tps_ecoule <- as.difftime(df_all$tps_ecoule, units = "secs")
+df_all$tps.ecoule <- NULL
+
+### STATE
+states <- read_delim("./data/decomposition_etats_XP.csv", 
+                     delim = ";", col_names = c("debut","fin", "etat"), 
+                     col_types = "ttc", skip = 1)
+state_levels <- c("neutre", "etat1", "etat2", "etat3", "etat4", "etat5", "etat6",
+                  "etat7", "etat8",  "etat9",  "etat10", "etat11", "etat12", "etat13",
+                  "etat14", "etat15", "etat16", "etat17", "etat18", "etat19", "etat20",
+                  "etat21", "etat22", "etat23", "etat24", "etat25", "etat26", "fin", "unknown")
+states$etat <- factor(x = states$etat, levels = state_levels)
+
+#http://stackoverflow.com/questions/29373160/using-dplyrmutate-between-two-dataframes-to-create-column-based-on-date-range
+df_all <- df_all %>% rowwise() %>% mutate(state = states$etat[between(tps_ecoule, states$debut, states$fin )][1])
+df_all <- df_all %>% ungroup
+expect_true(is.factor(df_all$state))
+
+#some states are missing for the end (longer XPs)
+df_all$state <- df_all$state
+df_all[is.na(df_all$state),"state"] <- "fin"
+expect_length(which(is.na(df_all$state)), 0)
+
+#change state for experience 2 and 3
+df_all <- df_all %>% mutate(state = if_else(grepl( "[2|3]",as.character(nom.experience)),
+                                             factor("unknown",levels = state_levels), state))
+
 
 ############## PREP FOR KOHONEN MAP ###############
+
 list_expe <- levels(df_all$nom.experience)
-list_expe_sml <- list_expe[(!list_expe %in% c("AW","DA2","DA3","EZ1","FS1","GC1","HL","IA","LM","ST"))]
-list_expe_lrg <- list_expe[(!list_expe %in% c("FS1","LM","HL","ST"))]
+#two kinds of expe
+list_expe_small <- list_expe[(!list_expe %in% c("AW","DA2","DA3","EZ1","FS1","GC1","HL","IA","LM","ST"))]
+list_expe_large <- list_expe[(!list_expe %in% c("FS1","LM","HL","ST"))]
+
+#hyperp to choose large or small set
+if(LARGE_SET_EXPE) {
+  list_expe_selec <- list_expe_large
+} else {
+  list_expe_selec <- list_expe_small
+}
 
 #choose between the 2 list of experiences : 
 #list_expe_selec <- list_expe_sml
-list_expe_selec <- list_expe_lrg
 df_selec <- df_all[df_all$nom.experience %in% list_expe_selec,]
 
 #nom des variables sur lesquelles seront appliquées les algo statistique
 #on retire nom experience
-noms_var_stat <- c("activite.electrodermale","temperature","frequence.cardiaque",
-                   "nom.experience", "respi_clean_hl","respi_trend", 
-                   "loess","max_per_period","min_per_period","period_duration")
+noms_var_stat_small <- c("activite.electrodermale","temperature","frequence.cardiaque",
+                         "nom.experience", "respi_clean_hl","respi_trend", 
+                         "loess","max_per_period","min_per_period","period_duration", "state", "tps_ecoule")
 #larger list
-noms_var_stat <- c("nom.experience",
-                   "elecderm_clean", "elecderm_diff", 
-                   "temp_clean", "temp_diff",
-                   "freqcard_clean", "freqcard_diff",
-                   "respi_clean", "respi_clean_hl", "respi_trend", "loess", 
-                   "max_per_period","min_per_period","period_duration")
-df_stat <- as_data_frame(df_selec[,noms_var_stat])
+noms_var_stat_large <- c("nom.experience",
+                         "elecderm_clean", "elecderm_diff", 
+                         "temp_clean", "temp_diff",
+                         "freqcard_clean", "freqcard_diff",
+                         "respi_clean", "respi_clean_hl", "respi_trend", "loess", 
+                         "max_per_period","min_per_period","period_duration","state","tps_ecoule")
+
+#hyperp to choose minimal or maximal set of variables
+if(LARGE_SET_VAR) { 
+  noms_var_stat <- noms_var_stat_large 
+} else{ 
+  noms_var_stat <- noms_var_stat_small 
+}
+
+df_stat <- as_data_frame(df_selec[, noms_var_stat])
 
 #2 scale : global or per individuals
 
@@ -141,22 +168,17 @@ df_stat <- as_data_frame(df_selec[,noms_var_stat])
 #need to create my own scale function
 my_scale <- function(x, scale = T) c(scale(x, scale = scale))
 
-df_stat_scaled_per_exp <- df_stat %>% group_by(nom.experience) %>% mutate_each(funs(my_scale)) %>% ungroup 
-
-df_stat_centered_per_exp <- df_stat %>% group_by(nom.experience) %>% mutate_each(funs(my_scale(., scale = F))) %>% ungroup
-
 #simple (general) scale
-df_stat_scaled <- df_stat %>% mutate_each(funs(scale), -c(nom.experience, loess)) 
+df_stat_scaled <- df_stat %>% mutate_each(funs(scale), -c(nom.experience, loess, state, tps_ecoule))
 
-df_stat_scale_scale <- df_stat_scaled_per_exp %>% mutate_each(funs(my_scale(.)), -nom.experience) 
-df_stat_scale_scale2 <- df_stat_scaled_per_exp2 %>% mutate_each(funs(my_scale(.)), -nom.experience) 
-#df_stat_scale_scale <- data.frame(df_stat_scale_scale)
 
-df_stat_centered_scale <- df_stat_centered_per_exp %>% mutate_each(funs(my_scale(., scale = F)), -nom.experience) 
-df_stat_centered_scale2 <- df_stat_centered_per_exp2 %>% mutate_each(funs(my_scale(., scale = F)), -nom.experience) 
-
-df_stat_scaled <- df_stat_scaled %>% bind_cols(df_selec %>% dplyr::select(tps.ecoule))
-df_stat_scaled2 <- df_stat_scaled2 %>% bind_cols(df_selec2 %>% dplyr::select(tps.ecoule))
+#add statistical transformations per experiences
+#NB : ungroup after groop_by to avoid bugs
+#!!TODO add c(nom.experience, loess, state) to mutate_each!!
+df_stat_scaled_per_exp <- df_stat %>% group_by(nom.experience) %>% mutate_each(funs(my_scale), -c(nom.experience, state, tps_ecoule)) %>% ungroup 
+df_stat_centered_per_exp <- df_stat %>% group_by(nom.experience) %>% mutate_each(funs(my_scale(., scale = F)),-c(nom.experience, state, tps_ecoule)) %>% ungroup
+df_stat_scale_scale <- df_stat_scaled_per_exp %>% mutate_each(funs(my_scale(.)), -c(state, nom.experience)) 
+df_stat_centered_scale <- df_stat_centered_per_exp %>% mutate_each(funs(my_scale(., scale = F)), -c(nom.experience, state, tps_ecoule)) 
 
 if(DEBUG) {
   ## test solution 4 bug
@@ -165,209 +187,191 @@ if(DEBUG) {
   
   #show the bug :
   df_2 <- df %>% dplyr::group_by(group) %>% dplyr::mutate_each(funs(scale))
-  expect_that(dim(df2[[2]]), equals(c(ncol(df),1))) #dim should be NULL !!
+  expect_that(dim(df_2[[2]]), equals(c(ncol(df),1))) #dim should be NULL !!
   
   #solution : use a fonction that coerse the result of scale to vector
   my_scale_test <- function(x, ...) c(scale(x, ...))
   df_3 <- df %>% dplyr::group_by(group) %>% dplyr::mutate_each(funs(my_scale_test))
-  expect_that(dim(df3[[2]]), equals(NULL)) #should be 
+  expect_that(dim(df_3[[2]]), equals(NULL)) #should be 
   # old solution :
   # df_2 <- data.frame(df_2[1:nrow(df_2),])
   
   df_4 <- df %>% dplyr::group_by(group) %>% dplyr::mutate_each(funs(my_scale_test(.,scale = F)))
   expect_equal(df_4[df$group == "a",]$x, df$x[df$group == "a"] - mean(df$x[df$group == "a"]))
 }
-#df_test <- data.frame(A = c(8, 8, 10, 6, 12), B =  c(10, 10, 14, 7, 8), C = c("one","two","two","one","two"))
-#t1 <- df_test %>% group_by(C) %>% mutate_each(funs(scale)) 
-#t2_1 <- df_test[df_test$C == "one",1:2] %>% scale 
-#t2_2 <- df_test[df_test$C == "two",1:2] %>% scale
-#testthat::expect_true(any(as.matrix(t2_1) == as.matrix(t1[df_test$C == "one",1:2])))
-#testthat::expect_true(any(as.matrix(t2_2) == as.matrix(t1[df_test$C == "two",1:2])))
 
-########################
-######## PCA ###########
-########################
-# PCA for respiration
+#################################
+############# PCA ###############
+#################################
 
-PCAbiplot <- function(PC, x="PC1", y="PC2", sample = NA, seed = 7) {
-  #theme that are used for the multiradar plot
-  pca_theme <-  theme( axis.title.x=element_text(size = 6), axis.text.x=element_text(size = 5),
-                       axis.title.y=element_text(size = 6), axis.text.y=element_text(size = 5))
+source(file = "~/githubRepos/RGeneralFunctions/ggplot_et_co/ggpca/PCA.R")
+# PCA for all numerical variable
+df4pca <- df_stat %>% ungroup %>% dplyr::select(-loess)
+
+#true by default
+if(PCA_REPLACE_NA){
+  #replace NA by a stat calculated on the column of NA
+  #inspired by https://stat.ethz.ch/pipermail/r-help/2007-November/146598.html
   
-  # PC being a prcomp objecto
-  #PC <- pca_respi ##DEBUG##
-  df <- data.frame(row.names = 1:nrow(PC$x), PC$x)
-  #plot_data <- compute.bagplot(x = PC$x, y = PC$y)
-  gg <- ggplot(df, aes(x=PC1, y=PC2)) + stat_bag(alpha=.2, col = "blue", fill = "orange")
-  #gg <- ggplot(df, aes(x=PC1, y=PC2)) + geom_text(alpha=.4, size=3, aes(label=obsnames))
-  #gg <- ggplot(df, aes(x=PC1, y=PC2)) + geom_point(alpha=.2, size=.5, col= "blue")
-  gg <- gg + geom_hline(aes(yintercept = 0), size=.2) + geom_vline(aes(xintercept = 0), size=.2)
-  datapc <- data.frame(varnames=rownames(PC$rotation), PC$rotation)
-  mult <- min(
-    (max(df[,"PC2"]) - min(df[,"PC2"]) / (max(datapc[,"PC2"]) - min(datapc[,"PC2"]))),
-    (max(df[,"PC1"]) - min(df[,"PC1"]) / (max(datapc[,"PC1"]) - min(datapc[,"PC1"])))
-  )
-  datapc <- transform(datapc,
-                      v1 = .7 * mult * (get("PC1")),
-                      v2 = .7 * mult * (get("PC2"))
-  )
-  
-  gg <- gg +
-    geom_text(data = datapc, aes(x = datapc$v1, y = datapc$v2, label = varnames), 
-              size = 2, vjust = 1, color = "black")
-  gg <- gg + geom_segment(data=datapc, aes(x = 0, y = 0, xend = v1, yend = v2), 
-                          arrow = arrow(length = unit(0.2,"cm")), alpha=0.75, color="Magenta")
-  gg + pca_theme
-  
+  # na2stat <- function (df, fun) {
+  #   #replace missing values :
+  #   replace_na <- function(vec, fun) {
+  #     m <- fun(vec, na.rm = TRUE)
+  #     vec[is.na(vec)] <- m
+  #     return(vec)
+  #   }
+  #   map_df(df,replace_na, fun)
+  # }
+  na2stat_ho <- function(fun) {
+    function(vec) {
+      m <- fun(vec, na.rm = TRUE)
+      vec[is.na(vec)] <- m
+      return(vec)
+    }
+  }
+  #df_pca_no_na <- df_pca %>% select(-c(nom.experience, state)) %>% na2stat(fun = mean)
+  df4pca_no_na <- df4pca %>% mutate_if(is.numeric, na2stat_ho(fun = mean))
+  if(DEBUG){ 
+    print("dim of df pca no-na :");print(dim(df4pca_no_na))
+  }
+} else {
+  df4pca_no_na <- df4pca %>% na.omit
+  if(DEBUG) print(dim(df4pca_no_na))
 }
 
-# PCA for all variables
-df_pca <- df_stat %>% ungroup %>% dplyr::select(-nom.experience, -loess)
-df_pca2 <- df_stat2 %>% ungroup %>% dplyr::select(-nom.experience, -loess)
-pca <- prcomp( ~ ., data = df_pca, center = T, scale = T, na.action = na.omit)
-pca2 <- prcomp( ~ ., data = df_pca2, center = T, scale = T, na.action = na.omit)
-pca_rot <- as_data_frame(pca$rotation)
-pca_rot2 <- as_data_frame(pca2$rotation)
-dim(pca$x)
-dim(pca2$x)
-#library(ade4)
-#pca2 <- nipals(df_pca)
-str(df_pca)
-str(pca)
-
-# like plot(pca, type = "l") but better ;)
-pca_plot_var <- function(pca){
-  var_by_axis <- data_frame(share_var_total = pca$sdev^2/sum(pca$sdev^2), pca_axis = as.factor(1:length(pca$sdev)))
-  ggplot(var_by_axis, aes(x = pca_axis, y = share_var_total, group = 1)) + 
-    geom_line(col =" grey") + geom_point(col = "blue") +
-    xlab("axis rank") +
-    ylab("share of total variance") +
-    ggtitle("Principal component analyis : variance per axis") +
-    scale_y_continuous(labels = percent) +
-    theme_classic()
+#you can do pca on the df4pca and omit the lines with nas
+# or do pca on the df4pca_no_na, we took 2nd option
+filt <- function(vec) {
+  is.factor(vec) | (class(vec) == "difftime")
 }
-pca_plot_var(pca)
+pca_no_na <- prcomp( ~ ., data = select_if(df4pca_no_na,not(filt)), 
+                     center = T, scale = T, na.action = "na.pass")
+#get the individuals in new base from PCA
 
-PCAbiplot(pca)
+df_in_pca <- as_data_frame(pca_no_na$x)
+df_in_pca$nom.experience <- df4pca_no_na$nom.experience
+df_in_pca$state <- df4pca_no_na$state
+df_in_pca$tps_ecoule<- df4pca_no_na$tps_ecoule
 
-pca_respi <- prcomp( ~ respi_clean + respi_clean_hl + respi_trend + max_per_period + min_per_period +
-                       period_duration, data = df_pca, center = T, scale = T, na.action = na.omit)
-# plot(pca_respi, type = "l")
-pca_plot_var(pca_respi)
-#PCAbiplot(pca_respi)
+#test if the multi of rotation matrix and original data are equat to the result ("x")
+if(DEBUG) {
+  df_pca_scaled <- df_pca_no_na[,!names(df_pca) %in% c("nom.experience", "state", "tps_ecoule")] %>% mutate_each(funs(scale))
+  head(df_pca_scaled)
+  test <- as.matrix(df_pca_scaled) %*% pca_no_na$rotation
+  head(test)
+  head(as.matrix(pca_no_na$x))
+  assert_that(identical(as.matrix(pca_no_na$x[2,]), as.matrix(test[2,])))
+  assert_that(all(as.matrix(pca_no_na$x) == as.matrix(test)) && dim(pca_no_na$x == dim(test)))
+  rm(test)
+}
 
-pca_transpi <- prcomp( ~ elecderm_clean + elecderm_diff, data = df_pca, center = T, scale = T, na.action = na.omit)
-plot(pca_transpi, type = "l")
-PCAbiplot(pca_transpi)
+if(PRINT) {
+  gg_PCA_biplot(pca)
+  gg_PCA_biplot(pca_no_na)
+}
 
-pca_temp <- prcomp( ~ temp_clean + temp_diff, data = df_pca, center = T, scale = T, na.action = na.omit)
-plot(pca_transpi, type = "l")
-PCAbiplot(pca_temp)
-
-pca_freqcard <- prcomp( ~ freqcard_clean + freqcard_diff, data = df_pca, center = T, scale = T, na.action = na.omit)
-plot(pca_freqcard, type = "l")
-PCAbiplot(pca_freqcard)
 
 #get the percent of variance of eigen value 1 compared to eigen value 2
-share_eigenv1 = pca$sdev[1]^2 / sum(pca$sdev[1:2]^2)
-share_eigenv2 = pca$sdev[2]^2 / sum(pca$sdev[1:2]^2)
-
-
-
-
-# Predict PCs
-#predict(pca,  newdata=tail(df_scale_scale, 2))
-
-#require(graphics)
+share_eigenv1 = pca_no_na$sdev[1]^2 / sum(pca_no_na$sdev[1:2]^2)
+share_eigenv2 = pca_no_na$sdev[2]^2 / sum(pca_no_na$sdev[1:2]^2)
 
 #install_github("ggbiplot", "vqv")
 
-#ggscreplot(pca, type = c("pev", "cev"))
-# 
-# ggbiplot(pca, obs.scale = 1, var.scale = 1, 
-#          ellipse = TRUE, 
-#          circle = TRUE) +
-#   scale_color_discrete(name = '') + 
-#   theme(legend.direction = 'horizontal', 
-#         legend.position = 'top')
-# ggbiplot(pca, obs.scale = 1, var.scale = 1,
-#          groups = df_stat_scale_scale$nom.experience, ellipse = TRUE, circle = TRUE) +
-#   scale_color_discrete(name = '') +
-#   theme(legend.direction = 'horizontal', legend.position = 'top')
+write_csv(df_in_pca,'./data/pca_no_na_omit.csv')
+write(share_eigenv1, './data/share_eigen1')
+write(share_eigenv2, './data/share_eigen2')
 
 #-------------------------------------------#
 #--- Eliminate too extreme observations  ---#
 #-------------------------------------------#
+df_in_pca <- read_csv('./data/pca_no_na_omit.csv')
+share_eigenv1 <- scan('./data/share_eigen1')
+share_eigenv2 <- scan('./data/share_eigen2')
 
-df_rm_var <- df_stat_scaled %>% ungroup %>% dplyr::select(-nom.experience, -loess)
-stat_df <- df_rm_var %>% purrr::map(~ c(mean(., na.rm = T), sd(., na.rm = T)))
+#--- FOR PCA ---#
 
 dist_deal_na <- function(vec) {
-  sqrt(sum(vec^2, na.rm = T))
+  sqrt(sum(vec^2, na.rm = T)) #somehow na.rm remove non numerical column...
 }
-df_rm_var <- df_rm_var %>% purrr::by_row(..f = dist_deal_na, 
-                                         .collate = "cols", .to = "dist")
+#### ICI UN BUG ??? ###
+df_pca_dist <- df_in_pca %>% select(-c(nom.experience, state, tps_ecoule)) %>% 
+  purrr::by_row(..f = dist_deal_na, .collate = "cols", .to = "dist")
+names(df_pca_dist)[names(df_pca_dist)==".out"] <- "dist"
+df_pca_dist_test <- df_in_pca[1:1000,] %>% select(-c(nom.experience, state)) %>% purrr::by_row(..f = dist_deal_na, .collate = "cols", .to ="dist")
 
-df_stat_scaled <- dplyr::bind_cols(df_stat_scaled, dplyr::select(df_rm_var, dist))
-
-View(df_stat_scaled)
-
-
-if(DEBUG) {
-  test <- df_stat_scaled %>% select(c(2:10,12:14))
-  expect_equal(dist_deal_na(test[1,]), df_stat_scaled$dist[1])
-  expect_equal(dist_deal_na(test[2,]), df_stat_scaled$dist[2])
-  expect_equal(dist_deal_na(test[2000,]), df_stat_scaled$dist[2000])
-  set.seed(77)
-  nb <- round(runif(n =1, min = 1, max = nrow(test)))
-  expect_equal(dist_deal_na(test[nb,]), df_stat_scaled$dist[nb])
+## ATTENTION : this is with PCA_REPLACE_NA == FALSE
+if(! PCA_REPLACE_NA) {
+  mean(df_pca_dist$dist)
+  sd(df_pca_dist$dist)
+  ggplot(df_pca_dist, aes(dist)) + geom_histogram()
+  ggplot(df_pca_dist, aes(dist)) + geom_histogram() + xlim(NA, 20)
+  ggplot(df_pca_dist, aes(log(dist))) + geom_histogram()
+  #the histogram shows a 2nd (small) distribution around log(dist) = 2.1 i.e. dist ~= 8, we want to cut it
+  df_pca_filt <- df_pca_dist %>% filter(dist < 6)
+  ggplot(df_pca_filt, aes(dist)) + geom_histogram()
+}else {
+  #filter too extreme data
+  df_pca_filt <- df_pca_dist %>% filter(dist < 6)
+  #update nom.experience and state
+  rows2keep <- which(df_pca_dist$dist < 6)
+  df_pca_filt$nom.experience <- df_in_pca$nom.experience[rows2keep]
+  df_pca_filt$state <- df_in_pca$state[rows2keep]
+  df_pca_filt$tps_ecoule <- df_in_pca$tps_ecoule[rows2keep]
+  df_pca_filt <- df_pca_filt %>% select(-dist)
 }
-
-#ggplot(df_stat_scaled) %+% geom_jitter(aes(x = 1, y = dist, col = nom.experience), alpha = .5)
-ggplot(df_stat_scaled) %+% geom_boxplot(aes(x = 1, y = dist, col = nom.experience), alpha = .5)
-ggplot(df_stat_scaled) %+% geom_boxplot(aes(x = 1, y = dist, col = tps.ecoule), alpha = .5)
-
-summary(df_rm_var$dist > 6)
-df_rm_var$dist_sup_6 <- df_rm_var$dist > 6
-
-#=======================================#
-############### K-MEANS #################
-#=======================================#
-
-set.seed(77)
-df_km_scaled <- df_stat_scaled %>% select(-nom.experience, -loess)
-km <- kmeans(df_km_scaled, 50, nstart = 100, iter.max = 150, algorithm="Lloyd")
-df_km_scaled_per_exp <- df_stat_scaled_per_exp %>% select(-nom.experience)
-km_sc_pr_exp <- kmeans(df_km_scaled_per_exp, 50, nstart = 100, iter.max = 150, algorithm="Lloyd")
-df_km_scale_scale <- df_stat_scale_scale %>% select(-nom.experience)
-km <- kmeans(df_km_scaled, 50, nstart = 100, iter.max = 150, algorithm="Lloyd")
-
-set.seed(77)
-# Initialise ratio_ss 
-ratio_ss <- rep(0,10)
-for (k in 20:30) {
-  
-  # Apply k-means to school_result: school_km
-  km <- kmeans(df_stat, nstart = 40, centers = k)
-  
-  # Save the ratio between of WSS to TSS in kth element of ratio_ss
-  ratio_ss[k] <- km$tot.withinss /  km$totss
-  
-}
-
-# Make a scree plot with type "b" and xlab "k"
-plot( ratio_ss, type = "b", xlab = "k")
+nb_neurons_per_dim <- sqrt(400)
+grid_x <- round(share_eigenv1/share_eigenv2 * nb_neurons_per_dim)
+grid_y <- round(share_eigenv2/share_eigenv1 * nb_neurons_per_dim)
 
 
 #=====================================#
 ################ SOM ##################
 #=====================================#
 
+###########################
+####### with PCA ##########
+###########################
+
+#package som
+som_pca_test <- som::som(df_pca_dist_test, xdim = 10, ydim = 10,
+                     topol="hexa", neigh="gaussian",
+                     rlen = 300)
+plot(som_pca_test)
+som_pca0 <- som::som(df_pca_filt, xdim = 10, ydim = 10,
+                     topol="hexa", neigh="gaussian",
+                     rlen = 300)
+plot(som_pca0)
+
+#package kohonen
+som_pca <- kohonen::som(data = as.matrix(df_pca_filt), grid = somgrid(10, 10, "hexagonal"),
+                        rlen = 300, alpha = c(2,0.0001))
+plot(som_pca)
+som_pca2 <- kohonen::som(data = as.matrix(df_in_pca[,names(df_in_pca) != "nom.experience"]), grid = somgrid(grid_x, grid_y, "hexagonal"), rlen=180, alpha =c(2,0.0001))
+som_pca3 <- kohonen::som(data = as.matrix(df_in_pca[,names(df_in_pca) != "nom.experience"]), grid = somgrid(10, 10, "hexagonal"), rlen = 250, alpha =c(2,0.0001))
+som <- som_pca3
+
+
+som_pca <- kohonen::supersom(data = list(mat = as.matrix(df_in_pca)),
+                             grid = somgrid(20, 20, "hexagonal"),
+                             rlen = 200, alpha = c(2,0.0001),
+                             maxNA.fraction = .6,
+                             keep.data = F,
+                             contin = T,
+                             whatmap = 1)
+
+plot(som_pca)
+plot(som_pca, type = "counts")
+
+
+#----- with original df ----#
+
+df_SOM <- df_stat_scaled %>% select(-c(nom.experience, dist, tps.ecoule, loess))
+share_NA_maj <- which(rowSums(is.na(df_SOM)) / ncol(df_SOM) > .60)
+df_SOM[share_NA_maj,]
 
 #calcul de l'algorithme d'attiribution des données aux neurones
 #rlen permet de préciser le nombre d'itérations
 #temp à mettre au plus haut
-set.seed(77)
 df_SOM_scale_scale <-  df_stat_scaled_per_exp %>% ungroup %>% dplyr::select(-nom.experience, -loess)
 df_SOM_scale_scale_new <-  df_stat_scaled_per_exp_new %>% ungroup %>%  dplyr::select(-nom.experience, -loess)
 df_SOM_scaled <-  df_stat_scaled %>% dplyr::select(-nom.experience, -loess)
@@ -380,35 +384,35 @@ x <- 1:120
 y <- c(rep(1,60),1/i)
 nhbrdist <- unit.distances(som1$grid, som1$toroidal) #
 
-som1 <- kohonen::som(data = as.matrix(df_SOM_scale_scale), grid = somgrid(30, 30, "hexagonal"),
-                     rlen=300, alpha =c(2,0.0001), radius = quantile(nhbrdist, 0.9) * c(1, -1))
+#som1 <- kohonen::som(data = as.matrix(df_SOM_scale_scale), grid = somgrid(30, 30, "hexagonal"),
+#                     rlen=300, alpha =c(2,0.0001), radius = quantile(nhbrdist, 0.9) * c(1, -1))
 #som2 <- kohonen::som(data = as.matrix(df_SOM_scaled), grid = somgrid(30, 30, "hexagonal"), rlen=180, alpha =c(2,0.0001))
-som3 <- kohonen::som(data = as.matrix(df_SOM_center_scale), grid = somgrid(30, 30, "hexagonal"), rlen=180, alpha =c(2,0.0001))
+#som3 <- kohonen::som(data = as.matrix(df_SOM_center_scale), grid = somgrid(30, 30, "hexagonal"), rlen=180, alpha =c(2,0.0001))
 
 
-som_10_sc_sc <- kohonen::supersom(data = list(mat = as.matrix(df_SOM_scale_scale_new)),
-                                  grid = somgrid(10, 10, "hexagonal"),
-                                  rlen = 200, alpha = c(2,0.0001),
-                                  maxNA.fraction = .5,
-                                  keep.data = F,
-                                  contin = T,
-                                  whatmap = 1)
+som_scaled <- kohonen::supersom(data = list(mat = as.matrix(df_SOM)),
+                                grid = somgrid(20, 20, "hexagonal"),
+                                rlen = 200, alpha = c(2,0.0001),
+                                maxNA.fraction = .6,
+                                keep.data = F,
+                                contin = T,
+                                whatmap = 1)
 
-som_10_avg_sc <- kohonen::supersom(data = list(mat = as.matrix(df_SOM_center_scale_new)),
-                                   grid = somgrid(10, 10, "hexagonal"),
-                                   rlen = 200, alpha = c(2,0.0001),
-                                   maxNA.fraction = .5,
-                                   keep.data = F,
-                                   contin = T,
-                                   whatmap = 1)
+#som_10_avg_sc <- kohonen::supersom(data = list(mat = as.matrix(df_SOM_center_scale_new)),
+# grid = somgrid(10, 10, "hexagonal"),
+# rlen = 200, alpha = c(2,0.0001),
+# maxNA.fraction = .5,
+# keep.data = F,
+# contin = T,
+# whatmap = 1)
 
-som_short_new <- kohonen::supersom(data = list(mat = as.matrix(df_SOM_scale_scale_new)),
-                                   grid = somgrid(10, 10, "hexagonal"),
-                                   rlen = 200, alpha = c(2,0.0001),
-                                   maxNA.fraction = .5,
-                                   keep.data = F,
-                                   contin = T,
-                                   whatmap = 1)
+# som_short_new <- kohonen::supersom(data = list(mat = as.matrix(df_SOM_scale_scale_new)),
+#                                    grid = somgrid(10, 10, "hexagonal"),
+#                                    rlen = 200, alpha = c(2,0.0001),
+#                                    maxNA.fraction = .5,
+#                                    keep.data = F,
+#                                    contin = T,
+#                                    whatmap = 1)
 
 som_mid <- kohonen::supersom(data = list(mat = as.matrix(df_SOM_scale_scale)),
                              grid = somgrid(20, 20, "hexagonal"),
@@ -426,6 +430,8 @@ som_mid_new <- kohonen::supersom(data = list(mat = as.matrix(df_SOM_scale_scale_
                                  contin = T,
                                  whatmap = 1)
 ##Save main data for graphs (for markdown report)
+save(som_scaled,file = "./data/som_scaled.RDa")
+
 save(som1,file = "./data/som1.RDa")
 #save(som2,file = "./data/som2.RDa")
 save(som3,file = "./data/som3.RDa")
@@ -436,12 +442,10 @@ save(df_selec, file = "./data/df_selec.RDa")
 
 
 ##GRAPHICS
-
+som <- som_pca0
 str(som)
-ref.df <- data.frame(som$codes)
-df_SOM_scale_scale$ref <- som$unit.classif
-df_SOM_scale_scale$nom.experience <- df_selec$nom.experience
-
+df_SOM$ref <- som$unit.classif
+df_SOM$nom.experience <- df_selec$nom.experience
 
 
 par(xpd=F)
